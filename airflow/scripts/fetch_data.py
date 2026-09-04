@@ -2,16 +2,17 @@
 Extract task: download the Credit Card Fraud Detection dataset from Kaggle
 and bulk-load it into PostgreSQL.
 """
+import csv
+import io
 import os
 
-import pandas as pd
+import psycopg2
 from kaggle.api.kaggle_api_extended import KaggleApi
 from sqlalchemy import create_engine, text
 
 DATASET = "mlg-ulb/creditcardfraud"
 TARGET_TABLE = "raw_transactions"
 
-# Expected dataset dimensions for validation
 EXPECTED_ROWS = 284_807
 EXPECTED_COLUMNS = 31
 
@@ -21,11 +22,7 @@ RAW_CSV = os.path.join(DATA_DIR, "creditcard.csv")
 
 
 def configure_kaggle_auth():
-    """Make the KAGGLE_API_TOKEN env var usable by the kaggle CLI.
-
-    Newer token format (KGAT_...) is read by the client from
-    ~/.kaggle/access_token. If only the env var is present, write it there.
-    """
+    """Write the KAGGLE_API_TOKEN env var to ~/.kaggle/access_token."""
     token = os.environ.get("KAGGLE_API_TOKEN")
     if not token:
         return
@@ -64,49 +61,72 @@ def download_dataset() -> str:
     return RAW_CSV
 
 
+COLUMNS = [
+    "time", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9",
+    "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18",
+    "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26", "v27",
+    "v28", "amount", "class",
+]
+
+
 def load_to_postgres(csv_path: str) -> dict:
-    """Load the CSV into PostgreSQL and return row/column counts."""
-    from sqlalchemy import inspect
-
-    POSTGRES_USER = os.environ["POSTGRES_USER"]
-    POSTGRES_PASSWORD = os.environ["POSTGRES_PASSWORD"]
-    POSTGRES_DB = os.environ["POSTGRES_DB"]
-    POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "postgres")
-    POSTGRES_PORT = os.environ.get("POSTGRES_PORT", "5432")
-
-    engine = create_engine(
-        f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}"
-        f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+    """Load the CSV into PostgreSQL using psycopg2 COPY for speed."""
+    conn = psycopg2.connect(
+        host=os.environ.get("POSTGRES_HOST", "postgres"),
+        port=os.environ.get("POSTGRES_PORT", "5432"),
+        dbname=os.environ["POSTGRES_DB"],
+        user=os.environ["POSTGRES_USER"],
+        password=os.environ["POSTGRES_PASSWORD"],
     )
+    try:
+        cur = conn.cursor()
 
-    print(f"Reading CSV: {csv_path}")
-    df = pd.read_csv(csv_path)
+        print(f"Truncating {TARGET_TABLE}...")
+        cur.execute(f"TRUNCATE {TARGET_TABLE} RESTART IDENTITY")
 
-    # Class column arrives as quoted string in some dumps; coerce to int
-    df["Class"] = df["Class"].astype(int)
-    df["Time"] = df["Time"].astype(float)
-    df["Amount"] = df["Amount"].astype(float)
+        print(f"Loading {csv_path} into {TARGET_TABLE}...")
 
-    # Use COPY-style bulk insert via to_sql (fastest path with pandas)
-    print(f"Loading {len(df)} rows into {TARGET_TABLE}...")
-    with engine.begin() as conn:
-        conn.execute(text(f"TRUNCATE {TARGET_TABLE} RESTART IDENTITY"))
-        df.to_sql(
-            TARGET_TABLE,
-            conn,
-            if_exists="append",
-            index=False,
-            method="multi",
-            chunksize=10_000,
-        )
+        with open(csv_path, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            header = next(reader)  # skip header
 
-    with engine.connect() as conn:
-        stored_rows = conn.execute(
-            text(f"SELECT COUNT(*) FROM {TARGET_TABLE}")
-        ).scalar()
+            buffer = io.StringIO()
+            row_count = 0
+            for row in reader:
+                # Strip quotes from Class column and write tab-separated
+                row[-1] = row[-1].strip('"')
+                buffer.write("\t".join(row) + "\n")
+                row_count += 1
 
-    print(f"Load complete: {stored_rows} rows in {TARGET_TABLE}")
-    return {"rows": stored_rows, "columns": len(df.columns)}
+                if row_count % 50_000 == 0:
+                    buffer.seek(0)
+                    cur.copy_expert(
+                        f"COPY {TARGET_TABLE} ({', '.join(COLUMNS)}) FROM STDIN WITH (FORMAT text, NULL '')",
+                        buffer,
+                    )
+                    buffer = io.StringIO()
+                    print(f"  ... loaded {row_count} rows")
+
+            # Flush remaining rows
+            if buffer.tell() > 0:
+                buffer.seek(0)
+                cur.copy_expert(
+                    f"COPY {TARGET_TABLE} ({', '.join(COLUMNS)}) FROM STDIN WITH (FORMAT text, NULL '')",
+                    buffer,
+                )
+
+        conn.commit()
+        print(f"COPY complete: {row_count} rows sent")
+
+        cur.execute(f"SELECT COUNT(*) FROM {TARGET_TABLE}")
+        stored_rows = cur.fetchone()[0]
+        cur.execute(f"SELECT COUNT(*) FROM information_schema.columns WHERE table_name = '{TARGET_TABLE}'")
+        stored_cols = cur.fetchone()[0]
+
+        print(f"Load verified: {stored_rows} rows, {stored_cols} columns in {TARGET_TABLE}")
+        return {"rows": stored_rows, "columns": stored_cols}
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

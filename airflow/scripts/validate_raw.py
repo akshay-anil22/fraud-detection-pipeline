@@ -8,8 +8,8 @@ import sys
 from sqlalchemy import create_engine, text
 
 EXPECTED_ROWS = 284_807
-EXPECTED_COLUMNS = 31
-EXPECTED_COLUMN_NAMES = {f"V{i}" for i in range(1, 29)} | {"time", "amount", "class", "id"}
+EXPECTED_DATA_COLUMNS = 31
+EXPECTED_TOTAL_COLUMNS = 33  # 31 data columns + id (serial) + ingested_at (timestamptz)
 
 
 def get_engine():
@@ -37,15 +37,15 @@ def run_checks():
         if not row_ok:
             failures.append(f"row_count: {rows} != {EXPECTED_ROWS}")
 
-        # 2. Column count
+        # 2. Column count (31 data + id + ingested_at)
         cols = conn.execute(text(
             "SELECT COUNT(*) FROM information_schema.columns "
             "WHERE table_name = 'raw_transactions'"
         )).scalar()
-        col_ok = cols == EXPECTED_COLUMNS
-        checks.append(f"Column count: {cols} (expected {EXPECTED_COLUMNS}) -> {'PASS' if col_ok else 'FAIL'}")
+        col_ok = cols == EXPECTED_TOTAL_COLUMNS
+        checks.append(f"Column count: {cols} (expected {EXPECTED_TOTAL_COLUMNS}) -> {'PASS' if col_ok else 'FAIL'}")
         if not col_ok:
-            failures.append(f"column_count: {cols} != {EXPECTED_COLUMNS}")
+            failures.append(f"column_count: {cols} != {EXPECTED_TOTAL_COLUMNS}")
 
         # 3. No nulls in critical columns
         nulls = conn.execute(text(

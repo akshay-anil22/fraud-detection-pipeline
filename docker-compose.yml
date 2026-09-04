@@ -45,14 +45,14 @@ services:
         condition: service_healthy
     command: >
       bash -c "
-        airflow db check || airflow db migrate &&
+        airflow db migrate ;
         airflow users create
           --username admin
           --firstname Admin
           --lastname User
           --role Admin
           --email admin@example.com
-          --password admin || true &&
+          --password admin 2>/dev/null || true ;
         airflow webserver
       "
 
@@ -80,7 +80,7 @@ services:
         condition: service_healthy
     command: >
       bash -c "
-        airflow db check || airflow db migrate &&
+        airflow db migrate ;
         airflow scheduler
       "
 

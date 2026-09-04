@@ -46,13 +46,15 @@ services:
     command: >
       bash -c "
         airflow db migrate ;
-        airflow users create
-          --username admin
-          --firstname Admin
-          --lastname User
-          --role Admin
-          --email admin@example.com
-          --password admin 2>/dev/null || true ;
+        if ! airflow users list | grep -q admin ; then
+          airflow users create
+            --username admin
+            --firstname Admin
+            --lastname User
+            --role Admin
+            --email admin@example.com
+            --password admin ;
+        fi ;
         airflow webserver
       "
 

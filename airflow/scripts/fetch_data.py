@@ -40,14 +40,21 @@ def configure_kaggle_auth():
 
 
 def download_dataset() -> str:
-    """Download (if needed) and return path to the raw CSV."""
-    if os.path.exists(RAW_CSV):
+    """Download (if needed) and return path to the raw CSV.
+
+    By default the cached CSV is reused if present. Set FORCE_REFRESH=1
+    to always pull the latest version from the Kaggle API (picks up any
+    changes made to the remote dataset).
+    """
+    force = os.environ.get("FORCE_REFRESH", "").lower() in {"1", "true", "yes"}
+
+    if not force and os.path.exists(RAW_CSV):
         row_count = sum(1 for _ in open(RAW_CSV, encoding="utf-8")) - 1
         if row_count >= EXPECTED_ROWS:
             print(f"Dataset already present: {RAW_CSV} ({row_count} rows)")
             return RAW_CSV
 
-    print("Downloading dataset from Kaggle...")
+    print("Downloading dataset from Kaggle..." + (" (forced refresh)" if force else ""))
     configure_kaggle_auth()
     api = KaggleApi()
     api.authenticate()

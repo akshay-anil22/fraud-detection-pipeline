@@ -1,0 +1,36 @@
+# Secrets
+.env
+.env.local
+
+# Pre-existing files not part of this project
+MEC_Connect_Presentation.pptx
+create_presentation.py
+
+# Kaggle
+.kaggle/
+access_token
+
+# Data
+data/
+*.csv
+
+# Model artifacts
+models/
+*.joblib
+*.pkl
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.idea/
+
+# Docker
+postgres_data/
+airflow_logs/
+
+# OS
+.DS_Store
+Thumbs.db

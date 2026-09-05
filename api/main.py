@@ -11,11 +11,13 @@ Model is loaded ONCE at startup via the lifespan handler (the @app.on_event
 import os
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import numpy as np
 import xgboost as xgb
 from fastapi import FastAPI
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from feature_encoder import encode_vector
@@ -23,6 +25,8 @@ from schemas import PredictionResponse, TransactionRequest
 
 MODEL_PATH = os.environ.get("MODEL_PATH", "/opt/airflow/models/xgb_fraud_model.json")
 THRESHOLD = 0.5  # == XGBoost default decision boundary; configurable later
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 # Model registry state (filled once by lifespan).
 MODEL = {"model": None, "mtime": None, "size": None, "loaded_at": None}
@@ -67,14 +71,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
 
 @app.get("/")
-def root() -> dict:
-    return {
-        "service": "fraud-detection-api",
-        "model_path": MODEL_PATH,
-        "model_loaded": MODEL["model"] is not None,
-    }
+def root() -> FileResponse:
+    """Demo console UI - POST /predict playground."""
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/health")

@@ -172,4 +172,7 @@ def test_metrics_exposes_counters(client):
 
 
 def test_root(client):
-    assert client.get("/").json()["service"] == "fraud-detection-api"
+    r = client.get("/")
+    assert r.status_code == 200
+    assert 'id="predict-btn"' in r.text
+    assert "Fraud Detection API" in r.text

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fraud Detection API &mdash; Demo Console</title>
+<style>
+  :root {
+    --bg: #0f1117; --panel: #171a22; --border: #262b36;
+    --text: #e6e8ee; --muted: #8b93a5;
+    --accent: #4f8cff; --fraud: #ff5d5d; --ok: #3ddc97;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+  }
+  header {
+    display: flex; align-items: baseline; gap: 14px;
+    padding: 18px 32px; border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  #health {
+    margin-left: auto; font-size: 12px; color: var(--muted);
+  }
+  #health .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+  main {
+    display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 4fr);
+    gap: 20px; padding: 24px 32px; max-width: 1200px; margin: 0 auto;
+  }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  .panel h2 { margin: 0 0 14px; font-size: 14px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+  .grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  }
+  label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  input {
+    width: 100%; background: #0d0f15; color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 7px 9px; font: 13px/1.4 ui-monospace, Consolas, monospace;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  .actions { display: flex; gap: 10px; margin-top: 16px; align-items: center; }
+  button {
+    border: 0; border-radius: 7px; padding: 10px 20px; font-size: 13px;
+    font-weight: 600; cursor: pointer; transition: filter .15s;
+  }
+  button:hover { filter: brightness(1.15); }
+  #predict-btn { background: var(--accent); color: #fff; }
+  #sample-btn { background: #262b36; color: var(--text); }
+  #badge {
+    font-size: 11px; padding: 4px 10px; border-radius: 20px;
+    border: 1px solid var(--border); color: var(--muted);
+  }
+  #badge.known-fraud { color: var(--fraud); border-color: var(--fraud); }
+  #badge.known-legit { color: var(--ok); border-color: var(--ok); }
+  #result { min-height: 260px; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+  .prob { text-align: center; }
+  .prob .num { font-size: 52px; font-weight: 700; font-family: ui-monospace, Consolas, monospace; }
+  .prob .lbl { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+  .verdict { text-align: center; font-size: 18px; font-weight: 700; letter-spacing: .5px; padding: 12px; border-radius: 8px; }
+  .verdict.fraud { color: #fff; background: var(--fraud); }
+  .verdict.legit { color: #062; background: var(--ok); }
+  .meta { text-align: center; color: var(--muted); font-size: 12px; }
+  #error { color: var(--fraud); text-align: center; font-size: 13px; }
+  footer { padding: 16px 32px; color: var(--muted); font-size: 12px; max-width: 1200px; margin: 0 auto; }
+  footer code { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Fraud Detection API</h1>
+  <span class="sub">demo console &mdash; POST /predict</span>
+  <div id="health"><span class="dot" id="dot"></span><span id="health-txt">checking&hellip;</span></div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>Transaction input</h2>
+    <div class="grid" id="fields"></div>
+    <div class="actions">
+      <button id="predict-btn">&#9654;&nbsp; Predict</button>
+      <button id="sample-btn">&#128260;&nbsp; Load random sample</button>
+      <span id="badge" hidden></span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Prediction result</h2>
+    <div id="result">
+      <div class="meta">No prediction yet &mdash; submit a transaction above.</div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Model loaded once at startup (see <code>/health</code>). Source rows for
+  &ldquo;random sample&rdquo;: 6 known-fraud + 6 known-legit transactions snapshotted
+  from <code>raw_transactions</code>.
+</footer>
+
+<script>
+  const FIELD_DEFS = [
+    ["time", "time (sec since epoch)"], ["amount", "amount ($)"], ["duplicate_flag", "duplicate_flag (0/1, optional)"],
+    ["v1", "v1"], ["v2", "v2"], ["v3", "v3"], ["v4", "v4"], ["v5", "v5"],
+    ["v6", "v6"], ["v7", "v7"], ["v8", "v8"], ["v9", "v9"], ["v10", "v10"],
+    ["v11", "v11"], ["v12", "v12"], ["v13", "v13"], ["v14", "v14"], ["v15", "v15"],
+    ["v16", "v16"], ["v17", "v17"], ["v18", "v18"], ["v19", "v19"], ["v20", "v20"],
+    ["v21", "v21"], ["v22", "v22"], ["v23", "v23"], ["v24", "v24"], ["v25", "v25"],
+    ["v26", "v26"], ["v27", "v27"], ["v28", "v28"],
+  ];
+  const SAMPLE_COLS = ["time", "amount", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8",
+    "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20",
+    "v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28"];
+
+  const fieldsEl = document.getElementById("fields");
+  const inputs = {};
+
+  FIELD_DEFS.forEach(([name, label]) => {
+    const wrap = document.createElement("div");
+    const lab = document.createElement("label");
+    lab.textContent = label;
+    const inp = document.createElement("input");
+    inp.type = "text"; inp.name = name; inp.id = "f-" + name;
+    if (!/^v\d+$/.test(name) && name !== "duplicate_flag") inp.value = "";
+    inputs[name] = inp;
+    wrap.appendChild(lab); wrap.appendChild(inp);
+    fieldsEl.appendChild(wrap);
+  });
+
+  async function health() {
+    try {
+      const r = await fetch("/health");
+      const h = await r.json();
+      const ok = h.status === "ok";
+      document.getElementById("dot").style.background = ok ? "#3ddc97" : "#ff5d5d";
+      document.getElementById("health-txt").textContent = ok
+        ? `model loaded (${(h.artifact_size_bytes / 1024).toFixed(0)} KB artifact)`
+        : "model NOT loaded";
+    } catch (e) {
+      document.getElementById("dot").style.background = "#ff5d5d";
+      document.getElementById("health-txt").textContent = "api unreachable";
+    }
+  }
+
+  function setFields(row, isFraud) {
+    SAMPLE_COLS.forEach((c, i) => { if (inputs[c]) inputs[c].value = row[i]; });
+    if (inputs.duplicate_flag) inputs.duplicate_flag.value = "0";
+    const badge = document.getElementById("badge");
+    badge.hidden = false;
+    badge.className = isFraud ? "known-fraud" : "known-legit";
+    badge.textContent = isFraud ? "known FRAUD transaction" : "known legitimate transaction";
+  }
+
+  async function loadRandomSample() {
+    const badge = document.getElementById("badge");
+    badge.hidden = true;
+    try {
+      const r = await fetch("/static/samples.csv");
+      const text = await r.text();
+      const lines = text.trim().split(/\r?\n/).slice(1);
+      const row = lines[Math.floor(Math.random() * lines.length)].split(",");
+      setFields(row, row[row.length - 1] === "1");
+    } catch (e) {
+      badge.hidden = false; badge.className = "";
+      badge.textContent = "sample load failed: " + e.message;
+    }
+  }
+
+  function buildPayload() {
+    const payload = {};
+    for (const [name, inp] of Object.entries(inputs)) {
+      const v = inp.value.trim();
+      if (v === "") {
+        if (name === "duplicate_flag") continue;
+        throw new Error(`field "${name}" is empty`);
+      }
+      payload[name] = parseFloat(v);
+      if (Number.isNaN(payload[name])) throw new Error(`field "${name}" is not a number`);
+    }
+    return payload;
+  }
+
+  async function predict() {
+    const resultEl = document.getElementById("result");
+    const errEl = document.getElementById("error");
+    if (errEl) errEl.remove();
+    let body;
+    try {
+      body = JSON.stringify(buildPayload());
+    } catch (e) {
+      showError(e.message);
+      return;
+    }
+    try {
+      const t0 = performance.now();
+      const res = await fetch("/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+      const wall = (performance.now() - t0).toFixed(1);
+      const data = await res.json();
+      if (!res.ok) {
+        showError(Array.isArray(data.detail) ? data.detail.map(d => d.msg).join("; ") : JSON.stringify(data));
+        return;
+      }
+      renderResult(data, wall);
+    } catch (e) {
+      showError("request failed: " + e.message);
+    }
+  }
+
+  function renderResult(data, wallMs) {
+    const p = data.fraud_probability;
+    const fraud = data.prediction === 1;
+    const resultEl = document.getElementById("result");
+    resultEl.innerHTML = `
+      <div class="prob">
+        <div class="num" style="color:${fraud ? "#ff5d5d" : "#3ddc97"}">${(p * 100).toFixed(2)}%</div>
+        <div class="lbl">fraud probability</div>
+      </div>
+      <div class="verdict ${fraud ? "fraud" : "legit"}">${fraud ? "FRAUD" : "LEGITIMATE"}</div>
+      <div class="meta">server ${data.latency_ms} ms &middot; browser round-trip ${wallMs} ms</div>`;
+  }
+
+  function showError(msg) {
+    const resultEl = document.getElementById("result");
+    const exist = document.getElementById("error");
+    if (exist) exist.remove();
+    const div = document.createElement("div");
+    div.id = "error";
+    div.textContent = msg;
+    resultEl.appendChild(div);
+  }
+
+  document.getElementById("predict-btn").addEventListener("click", predict);
+  document.getElementById("sample-btn").addEventListener("click", loadRandomSample);
+  health();
+</script>
+</body>
+</html>

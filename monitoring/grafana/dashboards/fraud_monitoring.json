@@ -120,7 +120,7 @@
       },
       "targets": [
         {
-          "expr": "rate(predict_outcome_total{outcome=\"1\"}[5m]) / rate(predict_requests_total[5m])",
+          "expr": "sum(rate(predict_outcome_total{outcome=\"1\"}[5m])) / sum(rate(predict_requests_total[5m]))",
           "legendFormat": "fraud_rate",
           "refId": "A"
         }

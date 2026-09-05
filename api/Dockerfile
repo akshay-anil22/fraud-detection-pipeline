@@ -6,6 +6,7 @@ COPY api/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY api/schemas.py api/feature_encoder.py api/main.py /app/
+COPY api/static /app/static
 
 # Bind-mounted at runtime: ./models -> /opt/airflow/models (model artifact)
 #                              ./airflow/scripts -> /opt/airflow/scripts (feature contract)

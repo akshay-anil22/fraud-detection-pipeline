@@ -19,7 +19,7 @@ SCRIPTS_DIR = os.path.join(DAG_FOLDER, "scripts")
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)  # allow operator imports from scripts
 
-from fetch_data import download_dataset, load_to_postgres  # noqa: E402
+from fetch_data import FILES, download_dataset, load_to_postgres  # noqa: E402
 from validate_raw import run_checks  # noqa: E402
 
 default_args = {
@@ -32,10 +32,13 @@ default_args = {
 
 
 def fetch_data_task(**context):
-    csv_path = download_dataset()
-    result = load_to_postgres(csv_path)
-    context["task_instance"].xcom_push(key="ingest_result", value=result)
-    return result
+    paths = download_dataset()
+    results = []
+    for i, (filename, split, _expected) in enumerate(FILES):
+        result = load_to_postgres(paths[filename], split, truncate_first=(i == 0))
+        results.append(result)
+    context["task_instance"].xcom_push(key="ingest_result", value=results)
+    return results
 
 
 def validate_raw_task(**context):

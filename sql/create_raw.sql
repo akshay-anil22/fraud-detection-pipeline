@@ -1,40 +1,38 @@
--- Credit Card Fraud Detection raw data schema
--- Source: Kaggle mlg-ulb/creditcardfraud
+-- Kartik2112 Fraud Detection raw data schema
+-- Source: Kaggle kartik2112/fraud-detection (fraudTrain.csv + fraudTest.csv)
+--
+-- 25 columns = id + 22 data columns + source_split + ingested_at.
+-- source_split records which CSV the row came from ('train' | 'test') so the
+-- chronological train/test holdout survives into the gold layer.
 
 CREATE TABLE IF NOT EXISTS raw_transactions (
-    id          BIGSERIAL PRIMARY KEY,
-    time        DOUBLE PRECISION NOT NULL,
-    v1          DOUBLE PRECISION,
-    v2          DOUBLE PRECISION,
-    v3          DOUBLE PRECISION,
-    v4          DOUBLE PRECISION,
-    v5          DOUBLE PRECISION,
-    v6          DOUBLE PRECISION,
-    v7          DOUBLE PRECISION,
-    v8          DOUBLE PRECISION,
-    v9          DOUBLE PRECISION,
-    v10         DOUBLE PRECISION,
-    v11         DOUBLE PRECISION,
-    v12         DOUBLE PRECISION,
-    v13         DOUBLE PRECISION,
-    v14         DOUBLE PRECISION,
-    v15         DOUBLE PRECISION,
-    v16         DOUBLE PRECISION,
-    v17         DOUBLE PRECISION,
-    v18         DOUBLE PRECISION,
-    v19         DOUBLE PRECISION,
-    v20         DOUBLE PRECISION,
-    v21         DOUBLE PRECISION,
-    v22         DOUBLE PRECISION,
-    v23         DOUBLE PRECISION,
-    v24         DOUBLE PRECISION,
-    v25         DOUBLE PRECISION,
-    v26         DOUBLE PRECISION,
-    v27         DOUBLE PRECISION,
-    v28         DOUBLE PRECISION,
-    amount      DOUBLE PRECISION NOT NULL,
-    class       SMALLINT NOT NULL,
-    ingested_at TIMESTAMPTZ DEFAULT NOW()
+    id                    BIGSERIAL PRIMARY KEY,
+    trans_date_trans_time TIMESTAMPTZ NOT NULL,
+    cc_num                TEXT NOT NULL,
+    merchant              TEXT NOT NULL,
+    category              TEXT NOT NULL,
+    amt                   DOUBLE PRECISION NOT NULL,
+    first                 TEXT,
+    last                  TEXT,
+    gender                TEXT,
+    street                TEXT,
+    city                  TEXT,
+    state                 TEXT,
+    zip                   TEXT,
+    lat                   DOUBLE PRECISION,
+    long                  DOUBLE PRECISION,
+    city_pop              BIGINT,
+    job                   TEXT,
+    dob                   TEXT,
+    trans_num             TEXT NOT NULL,
+    unix_time             BIGINT NOT NULL,
+    merch_lat             DOUBLE PRECISION,
+    merch_long            DOUBLE PRECISION,
+    is_fraud              SMALLINT NOT NULL,
+    source_split          TEXT NOT NULL,
+    ingested_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_raw_transactions_class ON raw_transactions (class);
+CREATE INDEX IF NOT EXISTS idx_raw_transactions_split_is_fraud ON raw_transactions (source_split, is_fraud);
+CREATE INDEX IF NOT EXISTS idx_raw_transactions_cc_num ON raw_transactions (cc_num);
+CREATE INDEX IF NOT EXISTS idx_raw_transactions_unix_time ON raw_transactions (unix_time);

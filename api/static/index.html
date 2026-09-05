@@ -35,12 +35,16 @@
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
   }
   label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
-  input {
+  input, select {
     width: 100%; background: #0d0f15; color: var(--text);
     border: 1px solid var(--border); border-radius: 6px;
     padding: 7px 9px; font: 13px/1.4 ui-monospace, Consolas, monospace;
   }
-  input:focus { outline: none; border-color: var(--accent); }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  input:disabled { color: var(--muted); }
+  .ctx { font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+  .ctx b { color: var(--text); }
+  .hint { font-size: 10px; color: var(--muted); display: block; margin-top: 3px; }
   .actions { display: flex; gap: 10px; margin-top: 16px; align-items: center; }
   button {
     border: 0; border-radius: 7px; padding: 10px 20px; font-size: 13px;
@@ -78,6 +82,7 @@
 <main>
   <section class="panel">
     <h2>Transaction input</h2>
+    <div class="ctx" id="ctx" hidden></div>
     <div class="grid" id="fields"></div>
     <div class="actions">
       <button id="predict-btn">&#9654;&nbsp; Predict</button>
@@ -95,37 +100,72 @@
 </main>
 
 <footer>
-  Model loaded once at startup (see <code>/health</code>). Source rows for
-  &ldquo;random sample&rdquo;: 6 known-fraud + 6 known-legit transactions snapshotted
-  from <code>raw_transactions</code>.
+  Model loaded once at startup (see <code>/health</code>). The served encoder
+  reads the persisted Week-3 artifacts (<code>category_target_map.json</code> +
+  <code>imputation_values.json</code>) and mirrors the training transform 1:1.
+  &ldquo;Random sample&rdquo; rows are real gold-table transactions (6 fraud + 6 legit).
+  <code>merchant</code> is display-only context; scoring uses category, DOB,
+  coordinates, city_pop and the merchant-history flag.
 </footer>
 
 <script>
-  const FIELD_DEFS = [
-    ["time", "time (sec since epoch)"], ["amount", "amount ($)"], ["duplicate_flag", "duplicate_flag (0/1, optional)"],
-    ["v1", "v1"], ["v2", "v2"], ["v3", "v3"], ["v4", "v4"], ["v5", "v5"],
-    ["v6", "v6"], ["v7", "v7"], ["v8", "v8"], ["v9", "v9"], ["v10", "v10"],
-    ["v11", "v11"], ["v12", "v12"], ["v13", "v13"], ["v14", "v14"], ["v15", "v15"],
-    ["v16", "v16"], ["v17", "v17"], ["v18", "v18"], ["v19", "v19"], ["v20", "v20"],
-    ["v21", "v21"], ["v22", "v22"], ["v23", "v23"], ["v24", "v24"], ["v25", "v25"],
-    ["v26", "v26"], ["v27", "v27"], ["v28", "v28"],
+  const CATEGORIES = [
+    "shopping_pos", "shopping_net", "misc_net", "grocery_pos", "grocery_net",
+    "food_dining", "personal_care", "health_fitness", "misc_pos", "home",
+    "gas_transport", "entertainment", "kids_pets", "travel",
   ];
-  const SAMPLE_COLS = ["time", "amount", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8",
-    "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20",
-    "v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28"];
+
+  const FIELD_DEFS = [
+    { name: "merchant", label: "merchant (display only)", type: "display" },
+    { name: "category", label: "category", type: "select", options: CATEGORIES },
+    { name: "amount", label: "amount ($)", type: "number" },
+    { name: "time", label: "time (sec since 2013-09-01Z)", type: "number", hint: "auto-filled by samples" },
+    { name: "dob", label: "cardholder DOB (YYYY-MM-DD)", type: "text" },
+    { name: "city_pop", label: "city_pop (cardholder city)", type: "number" },
+    { name: "lat", label: "cardholder lat", type: "number" },
+    { name: "long", label: "cardholder long", type: "number" },
+    { name: "merch_lat", label: "merchant lat", type: "number" },
+    { name: "merch_long", label: "merchant long", type: "number" },
+    { name: "is_new_merchant_for_card", label: "is_new_merchant_for_card", type: "select", options: ["0", "1"] },
+  ];
+  const SAMPLE_COLS = [
+    "merchant", "city", "state", "time", "amount", "category", "dob", "city_pop",
+    "lat", "long", "merch_lat", "merch_long", "is_new_merchant_for_card", "is_fraud",
+  ];
+  const FILES = {
+    samples: "/static/samples.csv",
+    sep: "\t",
+  };
 
   const fieldsEl = document.getElementById("fields");
   const inputs = {};
 
-  FIELD_DEFS.forEach(([name, label]) => {
+  FIELD_DEFS.forEach(def => {
     const wrap = document.createElement("div");
     const lab = document.createElement("label");
-    lab.textContent = label;
-    const inp = document.createElement("input");
-    inp.type = "text"; inp.name = name; inp.id = "f-" + name;
-    if (!/^v\d+$/.test(name) && name !== "duplicate_flag") inp.value = "";
-    inputs[name] = inp;
-    wrap.appendChild(lab); wrap.appendChild(inp);
+    lab.textContent = def.label;
+    wrap.appendChild(lab);
+    let ctl;
+    if (def.type === "select") {
+      ctl = document.createElement("select");
+      def.options.forEach(o => {
+        const opt = document.createElement("option");
+        opt.value = o; opt.textContent = o;
+        ctl.appendChild(opt);
+      });
+    } else {
+      ctl = document.createElement("input");
+      ctl.type = def.type === "number" ? "text" : def.type;
+      if (def.type === "display") ctl.disabled = true;
+    }
+    ctl.name = def.name; ctl.id = "f-" + def.name;
+    inputs[def.name] = ctl;
+    wrap.appendChild(ctl);
+    if (def.hint) {
+      const h = document.createElement("span");
+      h.className = "hint"; h.textContent = def.hint;
+      wrap.appendChild(h);
+    }
     fieldsEl.appendChild(wrap);
   });
 
@@ -145,8 +185,18 @@
   }
 
   function setFields(row, isFraud) {
-    SAMPLE_COLS.forEach((c, i) => { if (inputs[c]) inputs[c].value = row[i]; });
-    if (inputs.duplicate_flag) inputs.duplicate_flag.value = "0";
+    const ctx = document.getElementById("ctx");
+    ctx.hidden = false;
+    ctx.innerHTML = "Scoring merchant: <b id='ctx-merchant'></b> &middot; cardholder: <b id='ctx-city'></b>";
+    const mapped = {};
+    SAMPLE_COLS.forEach((c, i) => { mapped[c] = row[i]; });
+    inputs.merchant.value = mapped.merchant;
+    document.getElementById("ctx-merchant").textContent = mapped.merchant || "—";
+    document.getElementById("ctx-city").textContent = [mapped.city || "", mapped.state || ""].filter(Boolean).join(", ") || "—";
+    ["category", "amount", "time", "dob", "city_pop", "lat", "long",
+     "merch_lat", "merch_long", "is_new_merchant_for_card"].forEach(c => {
+      if (inputs[c]) inputs[c].value = mapped[c];
+    });
     const badge = document.getElementById("badge");
     badge.hidden = false;
     badge.className = isFraud ? "known-fraud" : "known-legit";
@@ -157,10 +207,10 @@
     const badge = document.getElementById("badge");
     badge.hidden = true;
     try {
-      const r = await fetch("/static/samples.csv");
+      const r = await fetch(FILES.samples);
       const text = await r.text();
       const lines = text.trim().split(/\r?\n/).slice(1);
-      const row = lines[Math.floor(Math.random() * lines.length)].split(",");
+      const row = lines[Math.floor(Math.random() * lines.length)].split(FILES.sep);
       setFields(row, row[row.length - 1] === "1");
     } catch (e) {
       badge.hidden = false; badge.className = "";
@@ -170,14 +220,16 @@
 
   function buildPayload() {
     const payload = {};
-    for (const [name, inp] of Object.entries(inputs)) {
-      const v = inp.value.trim();
-      if (v === "") {
-        if (name === "duplicate_flag") continue;
-        throw new Error(`field "${name}" is empty`);
+    for (const def of FIELD_DEFS) {
+      if (def.type === "display") continue;
+      const v = inputs[def.name].value.trim();
+      if (v === "") throw new Error(`field "${def.name}" is empty`);
+      if (def.type === "number") {
+        payload[def.name] = parseFloat(v);
+        if (Number.isNaN(payload[def.name])) throw new Error(`field "${def.name}" is not a number`);
+      } else {
+        payload[def.name] = v;
       }
-      payload[name] = parseFloat(v);
-      if (Number.isNaN(payload[name])) throw new Error(`field "${name}" is not a number`);
     }
     return payload;
   }

@@ -1,48 +1,41 @@
-"""Week 4 - Pydantic contracts for the /predict endpoint."""
-from pydantic import BaseModel, Field, ConfigDict
+"""Week 4 - Pydantic contracts for the /predict endpoint (kartik2112 raw form).
+
+The request carries the RAW kartik2112 fields the encoder needs to derive the
+Week 3 feature set (hour_of_day, is_weekend, amount_log, age, distance_km,
+city_pop_bin, is_new_merchant_for_card, category_target):
+
+  time    - seconds since 2013-09-01T00:00:00Z (same time anchor the Week 2 SQL
+            transform used: tx_datetime = TIMESTAMPTZ '2013-09-01 00:00:00+00'
+            + time * INTERVAL '1 second').
+  dob     - cardholder birth date (YYYY-MM-DD). Absent/unparseable -> the age
+            is imputed from the persisted training median (mirrors the gold
+            table NULL policy).
+  lat/long + merch_lat/merch_long - cardholder + merchant coordinates.
+            Any missing coordinate -> distance_km is filled with the persisted
+            training fill value.
+  is_new_merchant_for_card - needs card-merchant *history* to compute (like the
+            old duplicate_flag), so a caller that knows it supplies it, else 0.
+            The demo "Load random sample" always carries the gold value.
+
+Unknown fields are rejected (extra="forbid") so a stale v1-v28 payload gets a
+loud 422 instead of a silent wrong prediction.
+"""
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TransactionRequest(BaseModel):
-    """Raw transaction as provided to the API.
+    model_config = ConfigDict(extra="forbid")
 
-    time is seconds elapsed since 2013-09-01T00:00:00Z (same anchor the Week 2
-    SQL transform used). All v-features are the PCA-transformed card features.
-    duplicate_flag is optional: it needs transaction *history* to compute, so a
-    caller that knows the value can supply it; otherwise it defaults to 0.
-    """
-    model_config = ConfigDict(extra="forbid")  # unknown fields -> 422, not silent
-
-    time: float = Field(..., ge=0, description="Seconds since 2013-09-01T00:00:00Z")
+    time: float = Field(..., ge=0, description="Seconds since 2013-09-01T00:00:00Z (Week 2 anchor)")
     amount: float = Field(..., ge=0, description="Transaction amount in USD")
-    duplicate_flag: int = Field(0, ge=0, le=1, description="1 if an identical tx was seen before (optional)")
-    v1: float
-    v2: float
-    v3: float
-    v4: float
-    v5: float
-    v6: float
-    v7: float
-    v8: float
-    v9: float
-    v10: float
-    v11: float
-    v12: float
-    v13: float
-    v14: float
-    v15: float
-    v16: float
-    v17: float
-    v18: float
-    v19: float
-    v20: float
-    v21: float
-    v22: float
-    v23: float
-    v24: float
-    v25: float
-    v26: float
-    v27: float
-    v28: float
+    category: str = Field(..., description="Card category (one of the 14, e.g. grocery_pos)")
+    dob: str | None = Field(None, description="Cardholder birth date YYYY-MM-DD (imputed if absent)")
+    city_pop: float = Field(..., ge=0, description="Cardholder city population (binned at encode time)")
+    lat: float | None = Field(None, description="Cardholder latitude")
+    long: float | None = Field(None, description="Cardholder longitude")
+    merch_lat: float | None = Field(None, description="Merchant latitude")
+    merch_long: float | None = Field(None, description="Merchant longitude")
+    is_new_merchant_for_card: int = Field(0, ge=0, le=1, description="1 if first time this card uses this merchant (optional)")
 
 
 class PredictionResponse(BaseModel):

@@ -1,0 +1,338 @@
+[
+  {
+    "trans_num": "6834d8b25a0280c08f4245c4dc2868b1",
+    "merchant": "Douglas, Schneider and Turner",
+    "city": "Seattle",
+    "state": "WA",
+    "is_fraud": 1,
+    "request": {
+      "time": 197158112,
+      "amount": 1027.85,
+      "category": "shopping_pos",
+      "dob": "1957-04-20",
+      "city_pop": 837792,
+      "lat": 47.6633,
+      "long": -122.3022,
+      "merch_lat": 46.91998,
+      "merch_long": -121.784475,
+      "is_new_merchant_for_card": 1
+    },
+    "expected_features": {
+      "hour_of_day": 22,
+      "is_weekend": 1,
+      "amount_log": 6.93619695261344,
+      "age": 62,
+      "distance_km": 91.41188062604593,
+      "city_pop_bin": 2,
+      "is_new_merchant_for_card": 1
+    }
+  },
+  {
+    "trans_num": "b56e7ee50dfa85802e5bcb8e5cb9bbf7",
+    "merchant": "Baumbach, Strosin and Nicolas",
+    "city": "North East",
+    "state": "PA",
+    "is_fraud": 1,
+    "request": {
+      "time": 198880444,
+      "amount": 970.6,
+      "category": "shopping_pos",
+      "dob": "1998-11-12",
+      "city_pop": 12478,
+      "lat": 42.2008,
+      "long": -79.8332,
+      "merch_lat": 41.487515,
+      "merch_long": -79.748926,
+      "is_new_merchant_for_card": 1
+    },
+    "expected_features": {
+      "hour_of_day": 20,
+      "is_weekend": 0,
+      "amount_log": 6.878944197128018,
+      "age": 21,
+      "distance_km": 79.62028561482302,
+      "city_pop_bin": 1,
+      "is_new_merchant_for_card": 1
+    }
+  },
+  {
+    "trans_num": "69c05007153376d8c5e200899bd9f560",
+    "merchant": "Altenwerth, Cartwright and Koss",
+    "city": "Arlington",
+    "state": "VA",
+    "is_fraud": 1,
+    "request": {
+      "time": 221007531,
+      "amount": 989.45,
+      "category": "shopping_net",
+      "dob": "1968-11-14",
+      "city_pop": 207410,
+      "lat": 38.859,
+      "long": -77.0997,
+      "merch_lat": 38.240532,
+      "merch_long": -76.956992,
+      "is_new_merchant_for_card": 1
+    },
+    "expected_features": {
+      "hour_of_day": 22,
+      "is_weekend": 0,
+      "amount_log": 6.89815938530869,
+      "age": 51,
+      "distance_km": 69.88125552223556,
+      "city_pop_bin": 2,
+      "is_new_merchant_for_card": 1
+    }
+  },
+  {
+    "trans_num": "7ad1ce0c4ff83e80f998c0080adaf28c",
+    "merchant": "Abernathy and Sons",
+    "city": "Huntington Beach",
+    "state": "CA",
+    "is_fraud": 1,
+    "request": {
+      "time": 199332845,
+      "amount": 107.36,
+      "category": "food_dining",
+      "dob": "1976-09-17",
+      "city_pop": 190249,
+      "lat": 33.6773,
+      "long": -118.0051,
+      "merch_lat": 33.076661,
+      "merch_long": -118.731121,
+      "is_new_merchant_for_card": 0
+    },
+    "expected_features": {
+      "hour_of_day": 2,
+      "is_weekend": 0,
+      "amount_log": 4.685459017216894,
+      "age": 43,
+      "distance_km": 94.8962872803389,
+      "city_pop_bin": 2,
+      "is_new_merchant_for_card": 0
+    }
+  },
+  {
+    "trans_num": "2df7d894868fbc99ec1d8b055585fc9d",
+    "merchant": "Bauch-Raynor",
+    "city": "Senatobia",
+    "state": "MS",
+    "is_fraud": 1,
+    "request": {
+      "time": 230684763,
+      "amount": 289.27,
+      "category": "grocery_pos",
+      "dob": "1959-03-03",
+      "city_pop": 14462,
+      "lat": 34.6323,
+      "long": -89.8855,
+      "merch_lat": 34.746063,
+      "merch_long": -90.401093,
+      "is_new_merchant_for_card": 1
+    },
+    "expected_features": {
+      "hour_of_day": 23,
+      "is_weekend": 0,
+      "amount_log": 5.670811524319501,
+      "age": 61,
+      "distance_km": 48.808449007992444,
+      "city_pop_bin": 1,
+      "is_new_merchant_for_card": 1
+    }
+  },
+  {
+    "trans_num": "62561f43b8e36b58848d9a0d5ff6764c",
+    "merchant": "Dach-Nader",
+    "city": "Orange Park",
+    "state": "FL",
+    "is_fraud": 1,
+    "request": {
+      "time": 190251804,
+      "amount": 856.13,
+      "category": "misc_net",
+      "dob": "1949-02-25",
+      "city_pop": 98816,
+      "lat": 30.1382,
+      "long": -81.7742,
+      "merch_lat": 29.142545,
+      "merch_long": -81.075402,
+      "is_new_merchant_for_card": 1
+    },
+    "expected_features": {
+      "hour_of_day": 23,
+      "is_weekend": 0,
+      "amount_log": 6.753589599042377,
+      "age": 70,
+      "distance_km": 129.68366127560932,
+      "city_pop_bin": 1,
+      "is_new_merchant_for_card": 1
+    }
+  },
+  {
+    "trans_num": "1fbec2f65c66cc307ae0e4aceb62cfc9",
+    "merchant": "Abbott-Rogahn",
+    "city": "New Boston",
+    "state": "IL",
+    "is_fraud": 0,
+    "request": {
+      "time": 172239028,
+      "amount": 75.36,
+      "category": "entertainment",
+      "dob": "1993-10-05",
+      "city_pop": 1504,
+      "lat": 41.2153,
+      "long": -90.9879,
+      "merch_lat": 41.8321,
+      "merch_long": -90.459839,
+      "is_new_merchant_for_card": 1
+    },
+    "expected_features": {
+      "hour_of_day": 12,
+      "is_weekend": 0,
+      "amount_log": 4.335458998857547,
+      "age": 25,
+      "distance_km": 81.4640738677579,
+      "city_pop_bin": 0,
+      "is_new_merchant_for_card": 1
+    }
+  },
+  {
+    "trans_num": "764d45b0b38310ecd4dacea7c3d90cf7",
+    "merchant": "Abbott-Rogahn",
+    "city": "Brantley",
+    "state": "AL",
+    "is_fraud": 0,
+    "request": {
+      "time": 189339107,
+      "amount": 6.58,
+      "category": "entertainment",
+      "dob": "1958-06-26",
+      "city_pop": 2566,
+      "lat": 31.571,
+      "long": -86.2743,
+      "merch_lat": 31.852783,
+      "merch_long": -87.266169,
+      "is_new_merchant_for_card": 1
+    },
+    "expected_features": {
+      "hour_of_day": 10,
+      "is_weekend": 1,
+      "amount_log": 2.0255131996542803,
+      "age": 61,
+      "distance_km": 98.91766859107884,
+      "city_pop_bin": 0,
+      "is_new_merchant_for_card": 1
+    }
+  },
+  {
+    "trans_num": "5890bb74bd3aed24e3025786a31a1e93",
+    "merchant": "Abbott-Rogahn",
+    "city": "Munith",
+    "state": "MI",
+    "is_fraud": 0,
+    "request": {
+      "time": 173361609,
+      "amount": 67.01,
+      "category": "entertainment",
+      "dob": "1988-03-21",
+      "city_pop": 2523,
+      "lat": 42.3703,
+      "long": -84.2485,
+      "merch_lat": 42.517854,
+      "merch_long": -84.943883,
+      "is_new_merchant_for_card": 1
+    },
+    "expected_features": {
+      "hour_of_day": 12,
+      "is_weekend": 0,
+      "amount_log": 4.219654753187547,
+      "age": 30,
+      "distance_km": 59.37137512347813,
+      "city_pop_bin": 0,
+      "is_new_merchant_for_card": 1
+    }
+  },
+  {
+    "trans_num": "048a0b2f37fc77214cebf8febe9b248f",
+    "merchant": "Abbott-Rogahn",
+    "city": "Mobile",
+    "state": "AL",
+    "is_fraud": 0,
+    "request": {
+      "time": 178412396,
+      "amount": 63.32,
+      "category": "entertainment",
+      "dob": "1972-01-05",
+      "city_pop": 270712,
+      "lat": 30.7145,
+      "long": -88.0918,
+      "merch_lat": 29.779583,
+      "merch_long": -88.354691,
+      "is_new_merchant_for_card": 1
+    },
+    "expected_features": {
+      "hour_of_day": 22,
+      "is_weekend": 1,
+      "amount_log": 4.163870624870711,
+      "age": 47,
+      "distance_km": 106.9809917919324,
+      "city_pop_bin": 2,
+      "is_new_merchant_for_card": 1
+    }
+  },
+  {
+    "trans_num": "dedeef1a0ba18b3756c1d220993bd923",
+    "merchant": "Abbott-Rogahn",
+    "city": "Bagley",
+    "state": "WI",
+    "is_fraud": 0,
+    "request": {
+      "time": 184519096,
+      "amount": 4.99,
+      "category": "entertainment",
+      "dob": "1974-11-20",
+      "city_pop": 878,
+      "lat": 42.9207,
+      "long": -91.0685,
+      "merch_lat": 42.003054,
+      "merch_long": -90.460263,
+      "is_new_merchant_for_card": 1
+    },
+    "expected_features": {
+      "hour_of_day": 15,
+      "is_weekend": 1,
+      "amount_log": 1.7900914121273581,
+      "age": 44,
+      "distance_km": 113.58229817638332,
+      "city_pop_bin": 0,
+      "is_new_merchant_for_card": 1
+    }
+  },
+  {
+    "trans_num": "e93765e94765ab5dcf010f29dde028dd",
+    "merchant": "Abbott-Rogahn",
+    "city": "New York City",
+    "state": "NY",
+    "is_fraud": 0,
+    "request": {
+      "time": 218340884,
+      "amount": 266.41,
+      "category": "entertainment",
+      "dob": "1957-12-29",
+      "city_pop": 1577385,
+      "lat": 40.7699,
+      "long": -73.9511,
+      "merch_lat": 41.362588,
+      "merch_long": -74.110237,
+      "is_new_merchant_for_card": 1
+    },
+    "expected_features": {
+      "hour_of_day": 2,
+      "is_weekend": 1,
+      "amount_log": 5.588783061126403,
+      "age": 62,
+      "distance_km": 67.24068408949593,
+      "city_pop_bin": 3,
+      "is_new_merchant_for_card": 1
+    }
+  }
+]

@@ -5,8 +5,9 @@ WORKDIR /app
 COPY api/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY api/schemas.py api/feature_encoder.py api/main.py /app/
+COPY api/schemas.py api/feature_encoder.py api/main.py api/parity_check.py /app/
 COPY api/static /app/static
+COPY api/fixtures/samples_dataset.json /app/fixtures/samples_dataset.json
 
 # Bind-mounted at runtime: ./models -> /opt/airflow/models (model artifact)
 #                              ./airflow/scripts -> /opt/airflow/scripts (feature contract)

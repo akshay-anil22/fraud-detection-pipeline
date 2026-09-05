@@ -12,7 +12,16 @@ RUN apt-get update \
 USER airflow
 
 COPY airflow/requirements.txt /requirements.txt
-RUN pip install --no-cache-dir -r /requirements.txt
+# Wheels are pre-fetched (see docker/wheels) so the build does not depend on
+# flaky PyPI downloads for the large binary packages (xgboost, sklearn, ...).
+COPY docker/wheels /wheels
+RUN pip install --no-cache-dir --timeout 120 --retries 10 --find-links /wheels -r /requirements.txt
+
+# wheels were fetched by a root download step -> purge them as root so the
+# image does not retain ~600MB of installers.
+USER root
+RUN rm -rf /wheels
+USER airflow
 
 # Expose the Kaggle access token into the container via env var
 ENV KAGGLE_API_TOKEN=${KAGGLE_API_TOKEN}

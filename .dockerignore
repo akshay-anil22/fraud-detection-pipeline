@@ -1,0 +1,12 @@
+.git
+.env
+.env.example
+data/
+models/
+postgres_data/
+airflow_logs/
+**/__pycache__/
+**/*.pyc
+*.csv
+*.pptx
+docker/wheels/README.md

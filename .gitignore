@@ -30,6 +30,7 @@ venv/
 # Docker
 postgres_data/
 airflow_logs/
+docker/wheels/
 
 # OS
 .DS_Store

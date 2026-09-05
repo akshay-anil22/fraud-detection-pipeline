@@ -10,6 +10,7 @@ Kaggle API  ->  Airflow DAGs  ->  PostgreSQL  ->  Model Training  ->  FastAPI  -
 
 DAG fraud_ingestion:   fetch_data   -> validate_raw        (Week 1)
 DAG fraud_transform:   transform    -> validate_features   (Week 2)
+DAG fraud_train:       train_model  -> evaluate_model      (Week 3)
 ```
 
 ## Stages
@@ -18,7 +19,7 @@ DAG fraud_transform:   transform    -> validate_features   (Week 2)
 |---|---|---|---|---|
 | Week 1 - Ingest | `fraud_ingestion` | Kaggle CSV | `raw_transactions` | done |
 | Week 2 - Transform | `fraud_transform` | `raw_transactions` | `feature_transactions` | done |
-| Week 3 - Train | (planned) | `feature_transactions` | XGBoost model | pending |
+| Week 3 - Train | `fraud_train` | `feature_transactions` | XGBoost model + `model_metrics` | done |
 | Week 4 - Serve | (planned) | model | FastAPI `/predict` | pending |
 | Week 5 - Monitor | (planned) | API metrics | Prometheus/Grafana | pending |
 
@@ -75,6 +76,16 @@ fraud-detection-pipeline/
 | `duplicate_flag` | 1 if identical `(time, v1..v28, amount)` appears >1x | card-testing pattern |
 
 Quality gate runs 6 checks + a class-imbalance report (baseline for Week 3 `scale_pos_weight`).
+
+## Model Training (Week 3)
+
+`fraud_train` is manual-only (`schedule=None`) — the dataset is static, so daily retraining is wasted compute. Trigger via Airflow UI or `airflow dags trigger fraud_train`.
+
+- `scripts/train_model.py` — stratified 80/20 split (seeded), fits XGBoost with `scale_pos_weight` derived from the actual train split (~577:1), saves `xgb_fraud_model.json` + `feature_importances.json`.
+- `scripts/evaluate_model.py` — reloads the artifact, scores the held-out set, writes `metrics_latest.json`, inserts a row into `model_metrics` (schema in `sql/create_model_metrics.sql`), and runs a predict-one sanity check.
+- `scripts/modeling_common.py` — single source of truth for the feature list, paths, seed, and hyperparameters. `tx_datetime` is explicitly excluded from X (`hour_of_day`/`is_weekend` carry the signal).
+
+Latest held-out performance: ROC-AUC 0.974, recall 0.837, precision 0.872, F1 0.854.
 
 ## License
 

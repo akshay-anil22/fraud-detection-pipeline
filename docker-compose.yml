@@ -39,6 +39,7 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/scripts:/opt/airflow/scripts
       - ./data:/opt/airflow/data
+      - ./models:/opt/airflow/models
       - ./airflow/requirements.txt:/requirements.txt
     ports:
       - "8080:8080"
@@ -81,6 +82,7 @@ services:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/scripts:/opt/airflow/scripts
       - ./data:/opt/airflow/data
+      - ./models:/opt/airflow/models
     depends_on:
       postgres:
         condition: service_healthy

@@ -11,6 +11,7 @@ Kaggle API  ->  Airflow DAGs  ->  PostgreSQL  ->  Model Training  ->  FastAPI  -
 DAG fraud_ingestion:   fetch_data   -> validate_raw        (Week 1)
 DAG fraud_transform:   transform    -> validate_features   (Week 2)
 DAG fraud_train:       train_model  -> evaluate_model      (Week 3)
+API fraud_api:         FastAPI /predict + /metrics          (Week 4)
 ```
 
 ## Stages
@@ -20,7 +21,7 @@ DAG fraud_train:       train_model  -> evaluate_model      (Week 3)
 | Week 1 - Ingest | `fraud_ingestion` | Kaggle CSV | `raw_transactions` | done |
 | Week 2 - Transform | `fraud_transform` | `raw_transactions` | `feature_transactions` | done |
 | Week 3 - Train | `fraud_train` | `feature_transactions` | XGBoost model + `model_metrics` | done |
-| Week 4 - Serve | (planned) | model | FastAPI `/predict` | pending |
+| Week 4 - Serve | `fraud_api` | model | FastAPI `/predict` + `/metrics` | done |
 | Week 5 - Monitor | (planned) | API metrics | Prometheus/Grafana | pending |
 
 ## Tech Stack
@@ -86,6 +87,19 @@ Quality gate runs 6 checks + a class-imbalance report (baseline for Week 3 `scal
 - `scripts/modeling_common.py` — single source of truth for the feature list, paths, seed, and hyperparameters. `tx_datetime` is explicitly excluded from X (`hour_of_day`/`is_weekend` carry the signal).
 
 Latest held-out performance: ROC-AUC 0.974, recall 0.837, precision 0.872, F1 0.854.
+
+## Serving (Week 4)
+
+The trained artifact is served by a FastAPI container (`fraud_api`, port 8000). It mounts `models/` + `airflow/scripts/` read-only for the feature contract.
+
+- `POST /predict` — body is a raw transaction (`time`, `v1..v28`, `amount`, optional `duplicate_flag`); returns `{fraud_probability, prediction, latency_ms}`.
+- `GET /metrics` — Prometheus text format: request count, latency histogram, outcome counter (scraped directly, no exporter).
+- `GET /health` — liveness + model fingerprint (artifact mtime/size, loaded-at).
+- Feature math mirrors the Week 2 SQL transform 1:1: `hour_of_day`/`is_weekend` derive from `time` via the fixed `2013-09-01 00:00:00Z` anchor; `amount_log`, `v_magnitude`, and `duplicate_flag` handled the same way as training. Feature order comes from `modeling_common.FEATURES` so train and serve can't drift.
+
+Example: `curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -d @tx.json`
+
+Tests: `api/tests/test_predict.py`, 12 checks using hardcoded fraud/legit row snapshots (no DB needed at test time). `pytest` inside the container via `api/requirements-dev.txt`.
 
 ## License
 

@@ -12,6 +12,7 @@ DAG fraud_ingestion:   fetch_data   -> validate_raw        (Week 1)
 DAG fraud_transform:   transform    -> validate_features   (Week 2)
 DAG fraud_train:       train_model  -> evaluate_model      (Week 3)
 API fraud_api:         FastAPI /predict + /metrics          (Week 4)
+Monitor:               Prometheus scrapes api, Grafana dashboards  (Week 5)
 ```
 
 ## Stages
@@ -22,7 +23,7 @@ API fraud_api:         FastAPI /predict + /metrics          (Week 4)
 | Week 2 - Transform | `fraud_transform` | `raw_transactions` | `feature_transactions` | done |
 | Week 3 - Train | `fraud_train` | `feature_transactions` | XGBoost model + `model_metrics` | done |
 | Week 4 - Serve | `fraud_api` | model | FastAPI `/predict` + `/metrics` | done |
-| Week 5 - Monitor | (planned) | API metrics | Prometheus/Grafana | pending |
+| Week 5 - Monitor | `prometheus` + `grafana` | API metrics | "Fraud Monitoring" dashboard | done |
 
 ## Tech Stack
 
@@ -100,6 +101,12 @@ The trained artifact is served by a FastAPI container (`fraud_api`, port 8000). 
 Example: `curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -d @tx.json`
 
 Tests: `api/tests/test_predict.py`, 12 checks using hardcoded fraud/legit row snapshots (no DB needed at test time). `pytest` inside the container via `api/requirements-dev.txt`.
+
+## Monitoring (Week 5)
+
+Prometheus (port 9090) pull-scrapes `http://api:8000/metrics` every 5s; Grafana (port 3000, `admin/admin`) is auto-provisioned with the **Fraud Monitoring** dashboard (request rate, latency p50/p95, outcome split, 5-minute flagged-fraud rate, API/Prometheus availability). All config is files under `monitoring/` — no manual setup.
+
+Note: Prometheus runs **without a persistent volume**, so metrics reset on container restart — acceptable for a demo environment.
 
 ## License
 

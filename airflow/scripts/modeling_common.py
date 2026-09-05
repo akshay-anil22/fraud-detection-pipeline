@@ -1,45 +1,101 @@
 """
-Shared config for Week 3 training + evaluation.
+Shared config for Week 3 training + evaluation and the Week 2 transform
+contract (single source of truth so SQL, train, and serve cannot drift).
 
-Single source of truth for the feature list, artifact paths, and the
-reproducibility seed so train and evaluate cannot drift apart.
+Part 1 - feature list + transform constants (used by transform_features.py,
+train/evaluate, and the serving encoder).
+Part 2 - artifact paths (shared volume mounted at /opt/airflow/models).
 """
 import os
+from datetime import date, datetime
+from math import asin, cos, radians, sin, sqrt
 
 # ---- Database -----------------------------------------------------------
 TABLE = "feature_transactions"
-TARGET = "class"
+TARGET = "is_fraud"
 
 # ---- Artifact paths (shared volume mounted at /opt/airflow/models) ------
 MODELS_DIR = os.environ.get("MODELS_DIR", "/opt/airflow/models")
 MODEL_PATH = os.path.join(MODELS_DIR, "xgb_fraud_model.json")
 FEATURE_IMPORTANCE_PATH = os.path.join(MODELS_DIR, "feature_importances.json")
 METRICS_PATH = os.path.join(MODELS_DIR, "metrics_latest.json")
+CATEGORY_MAP_PATH = os.path.join(MODELS_DIR, "category_target_map.json")
+IMPUTATION_PATH = os.path.join(MODELS_DIR, "imputation_values.json")
 
 # ---- Reproducibility ----------------------------------------------------
 # Fixed so every run produces identical splits + identical model numbers.
 RANDOM_STATE = 42
-TEST_SIZE = 0.20
 
 # ---- Feature list -------------------------------------------------------
-# Explicitly EXCLUDED from X (documented decision, not accidental omission):
-#   id, ingested_at     - row/bookkeeping columns, no predictive signal
-#   tx_datetime         - raw timestamp column. XGBoost cannot consume it
-#                         (non-numeric), and its signal is already captured by
-#                         the derived numeric features hour_of_day and
-#                         is_weekend, which ARE included below.
-#   amount_bin          - derived-from-amount bucket kept out of X to avoid
-#                         redundancy with amount / amount_log.
-#   class               - the target (y), kept out of X.
+# The training matrix is 8 numeric features. category_target is learned at
+# train time (fit on train split only) and injected from CATEGORY_MAP_PATH.
+# Explicitly EXCLUDED from X (documented decisions):
+#   id, trans_num, ingested_at        - bookkeeping / identifiers
+#   source_split, unix_time           - the split marker + absolute clock
+#   trans_date_trans_time             - raw timestamp (signal captured by
+#                                        hour_of_day / is_weekend / age)
+#   cc_num, merchant, category        - identities; category enters via
+#                                        target encoding, merchant only via
+#                                        is_new_merchant_for_card
+#   amt, city_pop                     - raw forms; features are their
+#                                        transforms (amount_log, city_pop_bin)
+#   is_fraud                          - the target (y)
 FEATURES = [
-    "time",
-    "amount",
     "hour_of_day",
     "is_weekend",
     "amount_log",
-    "v_magnitude",
-    "duplicate_flag",
-] + [f"v{i}" for i in range(1, 29)]
+    "age",
+    "distance_km",
+    "city_pop_bin",
+    "is_new_merchant_for_card",
+    "category_target",
+]
+
+# ---- Transform constants (fixed, documented - never fit-derived) -------
+# city_pop buckets: <10k, 10k-100k, 100k-1M, >=1M
+# Evidence (raw scan): p50~2408, p90~186140, p99~1577385, max~2906700.
+POP_BIN_EDGES = [10_000, 100_000, 1_000_000]
+
+# age guard: NULL only on parse failure or implausibly-old (>110).
+# Under-18 rows are VALID parseable rows with higher-than-average fraud
+# (train: 0.759% vs 0.579% overall) - they are kept, not nulled.
+AGE_MAX_GUARD = 110
+
+# distance_km guard: NULL when any coordinate is missing.
+HAVERSINE_RADIUS_KM = 6371.0
+
+# Deterministic fills for NULLs (train computes/stores the real ones in
+# IMPUTATION_PATH at fit time; serve reads that file, never hardcodes):
+DISTANCE_FILL = 0.0
+AGE_FILL = "auto"  # replaced by train split median at fit time
+
+
+def age_years(tx_ts: datetime, dob: str) -> float:
+    """Whole calendar years, matching Postgres EXTRACT(year FROM age(tx, dob))."""
+    bday = date.fromisoformat(str(dob)[:10])
+    years = tx_ts.year - bday.year
+    if (tx_ts.month, tx_ts.day) < (bday.month, bday.day):
+        years -= 1
+    return float(years)
+
+
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in km - byte-matches the SQL transform."""
+    la1, la2, lo1, lo2 = radians(lat1), radians(lat2), radians(lon1), radians(lon2)
+    h = (
+        sin((la2 - la1) / 2) ** 2
+        + cos(la1) * cos(la2) * sin((lo2 - lo1) / 2) ** 2
+    )
+    return 2 * HAVERSINE_RADIUS_KM * asin(sqrt(h))
+
+
+def city_pop_bin(pop: int) -> int:
+    """Fixed population bucket code 0..3, mirrors the SQL CASE."""
+    for code, edge in enumerate(POP_BIN_EDGES):
+        if pop < edge:
+            return code
+    return len(POP_BIN_EDGES)
+
 
 # ---- XGBoost hyperparameters --------------------------------------------
 # scale_pos_weight is filled in at train time from the actual train split.

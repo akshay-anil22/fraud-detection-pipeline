@@ -2,8 +2,10 @@
 Fraud Detection Pipeline - Training DAG
 
 Stage 3 (this DAG):
-  train    -> stratified split, fit XGBoost with scale_pos_weight, save artifact
-  evaluate -> reload artifact, score held-out test set, persist metrics
+  train    -> temporal holdout split (source_split), fit XGBoost with
+              scale_pos_weight from the train split, persist category target
+              map + imputation values + model artifact
+  evaluate -> reload artifacts, score the later test split, persist metrics
 
 schedule=None: training only makes sense when the underlying data changes,
 which never happens for this static Kaggle dataset. Re-running the same rows

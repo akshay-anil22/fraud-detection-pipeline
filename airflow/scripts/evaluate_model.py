@@ -1,13 +1,18 @@
 """
 Week 3 - evaluate task.
 
-Reloads the saved artifact, rebuilds the SAME stratified split, scores the
-held-out test set, writes a metrics JSON, inserts a metrics row into Postgres
-(for Week 5 dashboards), and runs a predict_one sanity check.
+Reloads the saved artifacts (model + category map + imputation values),
+rebuilds the SAME temporal train/test matrices through build_matrices(),
+scores the held-out test split (chronological holdout), writes a metrics
+JSON, inserts a metrics row into Postgres (for the monitoring dashboards),
+and runs a predict_one sanity check.
+
+All category/imputation values come from the persisted artifact files - none
+are recomputed here, guaranteeing evaluate == train == serve.
 """
 import json
 
-import pandas as pd
+import xgboost as xgb
 from sklearn.metrics import (
     confusion_matrix,
     f1_score,
@@ -16,33 +21,28 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 from sqlalchemy import text
-import xgboost as xgb
 
 from modeling_common import (
-    FEATURES,
+    CATEGORY_MAP_PATH,
+    IMPUTATION_PATH,
     METRICS_PATH,
     MODEL_PATH,
     RANDOM_STATE,
-    TABLE,
-    TARGET,
-    TEST_SIZE,
     get_engine,
 )
-from train_model import load_feature_frame
+from train_model import build_matrices
+
+EVAL_SPLIT = "test"
+EVAL_SPLIT_NOTE = "temporal holdout 2013-06-21 -> 2013-12-31"
 
 
 def evaluate(dag_run_id: str | None = None):
-    df = load_feature_frame()
-    X = df[FEATURES]
-    y = df[TARGET]
+    with open(CATEGORY_MAP_PATH) as f:
+        cat_map = json.load(f)
+    with open(IMPUTATION_PATH) as f:
+        imp = json.load(f)
 
-    from sklearn.model_selection import train_test_split
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y,
-        test_size=TEST_SIZE,
-        random_state=RANDOM_STATE,
-        stratify=y,
-    )
+    X_train, y_train, X_test, y_test = build_matrices(cat_map, imp)
 
     model = xgb.XGBClassifier()
     model.load_model(MODEL_PATH)
@@ -64,6 +64,8 @@ def evaluate(dag_run_id: str | None = None):
         "confusion_matrix": {"tp": int(tp), "fp": int(fp), "tn": int(tn), "fn": int(fn)},
         "test_frauds": int((y_test == 1).sum()),
         "test_legit": int((y_test == 0).sum()),
+        "eval_split": EVAL_SPLIT,
+        "eval_split_note": EVAL_SPLIT_NOTE,
         "random_state": RANDOM_STATE,
     }
 
@@ -103,15 +105,15 @@ def _insert_metrics_row(metrics, y_train, dag_run_id=None):
 
 def _print_report(metrics):
     cm = metrics["confusion_matrix"]
-    print("=" * 50)
-    print("MODEL EVALUATION (held-out test set)")
-    print("=" * 50)
+    print("=" * 54)
+    print("MODEL EVALUATION (temporal holdout - test split)")
+    print("=" * 54)
     print(f"  Recall    : {metrics['recall']:.4f}  (caught {cm['tp']}/{metrics['test_frauds']} frauds)")
     print(f"  Precision : {metrics['precision']:.4f}  (of {cm['tp'] + cm['fp']} alarms, {cm['tp']} real)")
     print(f"  F1        : {metrics['f1']:.4f}")
     print(f"  ROC-AUC   : {metrics['roc_auc']:.4f}")
     print(f"  Missed    : {cm['fn']} frauds  |  False alarms: {cm['fp']}")
-    print("=" * 50)
+    print("=" * 54)
 
 
 def _predict_one_sanity(model, X_test, y_test):

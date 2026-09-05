@@ -92,6 +92,19 @@ services:
         airflow scheduler
       "
 
+  api-tests:
+    build:
+      context: .
+      dockerfile: api/Dockerfile.test
+    container_name: fraud_api_tests
+    environment:
+      MODEL_PATH: /opt/airflow/models/xgb_fraud_model.json
+    volumes:
+      - ./models:/opt/airflow/models
+      - ./airflow/scripts:/opt/airflow/scripts:ro
+    profiles:
+      - test
+
   api:
     build:
       context: .

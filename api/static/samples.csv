@@ -1,0 +1,13 @@
+merchant	city	state	time	amount	category	dob	city_pop	lat	long	merch_lat	merch_long	is_new_merchant_for_card	is_fraud
+Douglas, Schneider and Turner	Seattle	WA	197158112	1027.85	shopping_pos	1957-04-20	837792	47.6633	-122.3022	46.91998	-121.784475	1	1
+Baumbach, Strosin and Nicolas	North East	PA	198880444	970.6	shopping_pos	1998-11-12	12478	42.2008	-79.8332	41.487515	-79.748926	1	1
+Altenwerth, Cartwright and Koss	Arlington	VA	221007531	989.45	shopping_net	1968-11-14	207410	38.859	-77.0997	38.240532	-76.956992	1	1
+Abernathy and Sons	Huntington Beach	CA	199332845	107.36	food_dining	1976-09-17	190249	33.6773	-118.0051	33.076661	-118.731121	0	1
+Bauch-Raynor	Senatobia	MS	230684763	289.27	grocery_pos	1959-03-03	14462	34.6323	-89.8855	34.746063	-90.401093	1	1
+Dach-Nader	Orange Park	FL	190251804	856.13	misc_net	1949-02-25	98816	30.1382	-81.7742	29.142545	-81.075402	1	1
+Abbott-Rogahn	New Boston	IL	172239028	75.36	entertainment	1993-10-05	1504	41.2153	-90.9879	41.8321	-90.459839	1	0
+Abbott-Rogahn	Brantley	AL	189339107	6.58	entertainment	1958-06-26	2566	31.571	-86.2743	31.852783	-87.266169	1	0
+Abbott-Rogahn	Munith	MI	173361609	67.01	entertainment	1988-03-21	2523	42.3703	-84.2485	42.517854	-84.943883	1	0
+Abbott-Rogahn	Mobile	AL	178412396	63.32	entertainment	1972-01-05	270712	30.7145	-88.0918	29.779583	-88.354691	1	0
+Abbott-Rogahn	Bagley	WI	184519096	4.99	entertainment	1974-11-20	878	42.9207	-91.0685	42.003054	-90.460263	1	0
+Abbott-Rogahn	New York City	NY	218340884	266.41	entertainment	1957-12-29	1577385	40.7699	-73.9511	41.362588	-74.110237	1	0

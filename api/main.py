@@ -2,6 +2,7 @@
 
 Routes:
     GET  /health    liveness + model fingerprint (path, mtime, size, loaded_at)
+    GET  /zip/{code} offline US ZIP -> lat/lng lookup (for the UI)
     POST /predict   one transaction -> {fraud_probability, prediction, latency_ms}
     GET  /metrics   Prometheus text format (counters + latency histogram)
 
@@ -15,12 +16,13 @@ from pathlib import Path
 
 import numpy as np
 import xgboost as xgb
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from feature_encoder import encode_vector
+from geo import lookup as zip_lookup
 from schemas import PredictionResponse, TransactionRequest
 
 MODEL_PATH = os.environ.get("MODEL_PATH", "/opt/airflow/models/xgb_fraud_model.json")
@@ -89,6 +91,16 @@ def health() -> dict:
         "artifact_size_bytes": MODEL["size"],
         "loaded_at": MODEL["loaded_at"],
     }
+
+
+@app.get("/zip/{code}")
+def zip_lookup_route(code: str) -> dict:
+    if not (code.isdigit() and len(code) == 5):
+        raise HTTPException(status_code=422, detail="ZIP must be exactly 5 digits")
+    result = zip_lookup(code)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"ZIP {code} not found")
+    return result
 
 
 @app.post("/predict", response_model=PredictionResponse)

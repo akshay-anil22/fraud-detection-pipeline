@@ -98,13 +98,20 @@ The trained artifact is served by a FastAPI container (`fraud_api`, port 8000). 
 - `POST /predict` — body is a kartik2112 raw transaction (`time`, `amount`, `category`, `dob`, `city_pop`, cardholder `lat`/`long`, `merch_lat`/`merch_long`, optional `is_new_merchant_for_card`); returns `{fraud_probability, prediction, latency_ms}`. Stale v1-v28 payloads now 422 loudly (`extra="forbid"`).
 - `GET /metrics` — Prometheus text format: request count, latency histogram, outcome counter (scraped directly, no exporter).
 - `GET /health` — liveness + model fingerprint (artifact mtime/size, loaded-at).
+- `GET /zip/{code}` — offline 5-digit US ZIP lookup → `{zip, place, state, lat, lng}` (bundled GeoNames postal data, ~41k ZIPs), so the UI can convert a ZIP to cardholder/merchant coordinates instead of hand-typing lat/lng.
 - Feature math mirrors the Week 2 SQL transform 1:1: `hour_of_day`/`is_weekend` derive from `time` via the fixed `2013-09-01 00:00:00Z` anchor; age/distance use the same helpers as training; population buckets + target encoding come from the persisted files. Feature order comes from `modeling_common.FEATURES` so train and serve can't drift.
 
 Example: `curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -d @tx.json`
 
 The demo console (`/`) is a form over the raw fields with a "Load random sample" that pulls 12 real gold-table transactions (6 fraud + 6 legit).
 
-Parity: `api/parity_check.py` proves the served encoding reproduces training on 12 real rows (`encoder == gold features`, `served probability == artifact score`). Tests: `api/tests/test_predict.py` — 13 checks on real-row fixtures, no DB needed at test time (`pytest` via `api/requirements-dev.txt`).
+Parity: `api/parity_check.py` proves the served encoding reproduces training on 12 real rows (`encoder == gold features`, `served probability == artifact score`). Tests: `api/tests/test_predict.py` — 16 checks on real-row fixtures, no DB needed at test time.
+
+Run the API test suite in an isolated throwaway container (builds `api/Dockerfile.test` with dev deps and bakes in `tests/` + `fixtures/`, mounts the real model):
+
+```
+docker compose --profile test run --rm api-tests
+```
 
 ## Monitoring (Week 5)
 

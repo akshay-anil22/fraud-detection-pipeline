@@ -14,6 +14,11 @@ access_token
 data/
 *.csv
 
+# Bundled serving assets (small, required at runtime by the demo console UI)
+!api/data/
+!api/data/us_zip_codes.csv
+!api/static/samples.csv
+
 # Model artifacts
 models/
 *.joblib

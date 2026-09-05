@@ -160,3 +160,22 @@ def test_root(client):
     assert "Fraud Detection API" in r.text
     assert "category" in r.text  # new-form select is present, no v1..v28 grid
     assert "v1" not in r.text
+
+
+def test_zip_lookup_found(client):
+    r = client.get("/zip/78702")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["zip"] == "78702"
+    assert body["lat"] == pytest.approx(30.2638, abs=0.01)
+    assert body["lng"] == pytest.approx(-97.7166, abs=0.01)
+    assert body["state"] == "TX"
+
+
+def test_zip_lookup_not_found(client):
+    assert client.get("/zip/99999").status_code == 404
+
+
+def test_zip_lookup_bad_code(client):
+    assert client.get("/zip/12ab").status_code == 422
+    assert client.get("/zip/123").status_code == 422

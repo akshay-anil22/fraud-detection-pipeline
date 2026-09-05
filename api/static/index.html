@@ -32,8 +32,16 @@
   .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
   .panel h2 { margin: 0 0 14px; font-size: 14px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
   .grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px;
   }
+  .group-divider {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--border);
+    margin-top: 10px; padding-top: 14px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted);
+  }
+  .group-divider + div { margin-top: 2px; }
+  .span-full { grid-column: 1 / -1; }
   label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
   input, select {
     width: 100%; background: #0d0f15; color: var(--text);
@@ -68,8 +76,6 @@
   .verdict.legit { color: #062; background: var(--ok); }
   .meta { text-align: center; color: var(--muted); font-size: 12px; }
   #error { color: var(--fraud); text-align: center; font-size: 13px; }
-  footer { padding: 16px 32px; color: var(--muted); font-size: 12px; max-width: 1200px; margin: 0 auto; }
-  footer code { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -99,15 +105,6 @@
   </section>
 </main>
 
-<footer>
-  Model loaded once at startup (see <code>/health</code>). The served encoder
-  reads the persisted Week-3 artifacts (<code>category_target_map.json</code> +
-  <code>imputation_values.json</code>) and mirrors the training transform 1:1.
-  &ldquo;Random sample&rdquo; rows are real gold-table transactions (6 fraud + 6 legit).
-  <code>merchant</code> is display-only context; scoring uses category, DOB,
-  coordinates, city_pop and the merchant-history flag.
-</footer>
-
 <script>
   const CATEGORIES = [
     "shopping_pos", "shopping_net", "misc_net", "grocery_pos", "grocery_net",
@@ -116,14 +113,15 @@
   ];
 
   const FIELD_DEFS = [
-    { name: "merchant", label: "merchant (display only)", type: "display" },
     { name: "category", label: "category", type: "select", options: CATEGORIES },
     { name: "amount", label: "amount ($)", type: "number" },
-    { name: "time", label: "time (sec since 2013-09-01Z)", type: "number", hint: "auto-filled by samples" },
+    { name: "time_dt", label: "datetime (UTC, YYYY-MM-DD HH:MM)", type: "datetime" },
     { name: "dob", label: "cardholder DOB (YYYY-MM-DD)", type: "text" },
     { name: "city_pop", label: "city_pop (cardholder city)", type: "number" },
+    { name: "zip", label: "cardholder ZIP (5 digits)", type: "zip" },
     { name: "lat", label: "cardholder lat", type: "number" },
     { name: "long", label: "cardholder long", type: "number" },
+    { name: "merch_zip", label: "merchant ZIP (5 digits)", type: "zip", divider: "Merchant location" },
     { name: "merch_lat", label: "merchant lat", type: "number" },
     { name: "merch_long", label: "merchant long", type: "number" },
     { name: "is_new_merchant_for_card", label: "is_new_merchant_for_card", type: "select", options: ["0", "1"] },
@@ -141,7 +139,14 @@
   const inputs = {};
 
   FIELD_DEFS.forEach(def => {
+    if (def.divider) {
+      const d = document.createElement("div");
+      d.className = "group-divider";
+      d.textContent = def.divider;
+      fieldsEl.appendChild(d);
+    }
     const wrap = document.createElement("div");
+    if (def.type === "display") wrap.className = "span-full";
     const lab = document.createElement("label");
     lab.textContent = def.label;
     wrap.appendChild(lab);
@@ -155,8 +160,18 @@
       });
     } else {
       ctl = document.createElement("input");
-      ctl.type = def.type === "number" ? "text" : def.type;
-      if (def.type === "display") ctl.disabled = true;
+      if (def.type === "zip") {
+        ctl.type = "text";
+        ctl.inputMode = "numeric";
+        ctl.maxLength = 5;
+        ctl.pattern = "\\d{5}";
+      } else if (def.type === "datetime") {
+        ctl.type = "datetime-local";
+        ctl.step = "60";
+      } else {
+        ctl.type = def.type === "number" ? "text" : def.type;
+        if (def.type === "display") ctl.disabled = true;
+      }
     }
     ctl.name = def.name; ctl.id = "f-" + def.name;
     inputs[def.name] = ctl;
@@ -167,6 +182,30 @@
       wrap.appendChild(h);
     }
     fieldsEl.appendChild(wrap);
+  });
+
+  const ZIP_FIELDS = [
+    { name: "zip", lat: "lat", lng: "long", hintId: "zip-hint" },
+    { name: "merch_zip", lat: "merch_lat", lng: "merch_long", hintId: "merch-zip-hint" },
+  ];
+  ZIP_FIELDS.forEach(zf => {
+    const ctl = inputs[zf.name];
+    const wrap = ctl.parentElement;
+    const hint = document.createElement("span");
+    hint.className = "hint"; hint.id = zf.hintId;
+    wrap.appendChild(hint);
+    ctl.addEventListener("input", async () => {
+      const v = ctl.value.trim();
+      if (!/^\d{5}$/.test(v)) { hint.textContent = ""; return; }
+      try {
+        const r = await fetch("/zip/" + v);
+        if (!r.ok) { hint.textContent = r.status === 404 ? "ZIP not found" : "invalid ZIP"; return; }
+        const d = await r.json();
+        inputs[zf.lat].value = d.lat;
+        inputs[zf.lng].value = d.lng;
+        hint.textContent = d.place + ", " + d.state;
+      } catch (e) { hint.textContent = "lookup failed"; }
+    });
   });
 
   async function health() {
@@ -190,13 +229,17 @@
     ctx.innerHTML = "Scoring merchant: <b id='ctx-merchant'></b> &middot; cardholder: <b id='ctx-city'></b>";
     const mapped = {};
     SAMPLE_COLS.forEach((c, i) => { mapped[c] = row[i]; });
-    inputs.merchant.value = mapped.merchant;
     document.getElementById("ctx-merchant").textContent = mapped.merchant || "—";
     document.getElementById("ctx-city").textContent = [mapped.city || "", mapped.state || ""].filter(Boolean).join(", ") || "—";
-    ["category", "amount", "time", "dob", "city_pop", "lat", "long",
+    ["category", "amount", "dob", "city_pop", "lat", "long",
      "merch_lat", "merch_long", "is_new_merchant_for_card"].forEach(c => {
       if (inputs[c]) inputs[c].value = mapped[c];
     });
+    if (inputs.time_dt && mapped.time !== undefined) {
+      inputs.time_dt.value = secsToDatetimeLocal(parseFloat(mapped.time));
+    }
+    ["zip", "merch_zip"].forEach(c => { if (inputs[c]) inputs[c].value = ""; });
+    ["zip-hint", "merch-zip-hint"].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ""; });
     const badge = document.getElementById("badge");
     badge.hidden = false;
     badge.className = isFraud ? "known-fraud" : "known-legit";
@@ -218,10 +261,28 @@
     }
   }
 
+  const ANCHOR_MS = Date.UTC(2013, 8, 1, 0, 0, 0); // 2013-09-01T00:00:00Z
+
+  function secsToDatetimeLocal(secs) {
+    const d = new Date(ANCHOR_MS + secs * 1000);
+    const pad = n => String(n).padStart(2, "0");
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T`
+         + `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+  }
+
+  function datetimeLocalToSecs(val) {
+    const m = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.exec(val);
+    if (!m) return null;
+    const [, y, mo, d, h, mi] = m[0].match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    return (Date.UTC(+y, +mo - 1, +d, +h, +mi) - ANCHOR_MS) / 1000;
+  }
+
   function buildPayload() {
     const payload = {};
     for (const def of FIELD_DEFS) {
       if (def.type === "display") continue;
+      if (def.type === "zip") continue;
+      if (def.type === "datetime") continue;
       const v = inputs[def.name].value.trim();
       if (v === "") throw new Error(`field "${def.name}" is empty`);
       if (def.type === "number") {
@@ -231,6 +292,9 @@
         payload[def.name] = v;
       }
     }
+    const secs = datetimeLocalToSecs(inputs.time_dt.value.trim());
+    if (secs === null) throw new Error('field "datetime" is empty or invalid');
+    payload.time = secs;
     return payload;
   }
 

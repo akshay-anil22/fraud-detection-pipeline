@@ -162,7 +162,7 @@ docker compose --profile test run --rm api-tests
 
 ## Dataset
 
-[Credit Card Transactions Fraud Detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection) — 1,852,394 transactions (2019–2020), 9,651 fraudulent (~0.52%). `source_split` marks the chronological train/test boundary the model respects.
+[Credit Card Transactions Fraud Detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection) — 1,852,394 transactions (2012–2013), 9,651 fraudulent (~0.52%). `source_split` marks the chronological train/test boundary the model respects.
 
 ## License
 

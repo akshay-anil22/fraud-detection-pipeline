@@ -31,19 +31,43 @@ Drop a PNG into `docs/screenshots/` and reference it here — each section below
 
 ### Demo console UI — `http://localhost:8000`
 
-![Demo console — transaction form + result](docs/screenshots/ui-demo-console.png)
+![Demo console — legitimate transaction flagged as legitimate](docs/screenshots/ui-legit-transaction.png)
+
+![Demo console — fraudulent transaction flagged as fraud](docs/screenshots/ui-fraud-transaction.png)
 
 ### Fraud Monitoring dashboard — `http://localhost:3000` (admin / admin)
 
 ![Grafana Fraud Monitoring dashboard](docs/screenshots/grafana-dashboard.png)
 
-### Airflow pipeline — `http://localhost:8080` (admin / admin)
+### Airflow DAGs — `http://localhost:8080` (admin / admin)
 
-![Airflow DAG graph view](docs/screenshots/airflow-dags.png)
+![Airflow DAG list](docs/screenshots/airflow-dags.png)
 
 ### Running containers
 
-![docker compose ps — all services healthy](docs/screenshots/docker-containers.png)
+![docker compose ps — all containers healthy](docs/screenshots/docker-containers.png)
+
+## Airflow DAGs
+
+Three DAGs split the pipeline into independently testable stages:
+
+| DAG | Schedule | Tasks | What it does |
+|---|---|---|---|
+| `fraud_ingestion` | `@daily` (midnight) | `fetch_data` → `validate_raw` | Downloads the Credit Card Fraud dataset from Kaggle, loads it into PostgreSQL `raw_transactions`, then verifies row/column counts, nulls, and class distribution. |
+| `fraud_transform` | daily `00:15` (after ingestion) | `transform` → `validate_features` | Builds the gold `feature_transactions` table (8 ML-ready features) from `raw_transactions` and gates on feature-quality checks + class-imbalance report. |
+| `fraud_train` | on-demand (no schedule) | `train_model` → `evaluate_model` | Trains the fraud model on past transactions, then scores it against later transactions it has never seen to measure how well it generalises. Manual-only because the dataset never changes, so there is no value in re-running it on a schedule. |
+
+## Docker Containers
+
+| Container | Role | Exposed port |
+|---|---|---|
+| `fraud_postgres` | The database that stores all transaction data (plus Airflow's own bookkeeping). | 5432 |
+| `fraud_airflow_webserver` | The Airflow dashboard you open in your browser to see, trigger, and check on the DAGs. | 8080 |
+| `fraud_airflow_scheduler` | The background worker that actually runs the DAGs on schedule. | — |
+| `fraud_api` | FastAPI service — serves the ML model (`/predict`), ZIP lookup (`/zip/{code}`), `/health`, and Prometheus `/metrics`. | 8000 |
+| `fraud_prometheus` | Collects and stores API usage/performance numbers so they can be charted. | 9090 |
+| `fraud_grafana` | The dashboards page showing live, visual monitoring of the pipeline. | 3000 |
+| `fraud_api_tests` | A one-off container used only to run the automated tests on the API. | — |
 
 ## Quick Start
 

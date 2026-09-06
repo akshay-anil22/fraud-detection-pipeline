@@ -25,27 +25,29 @@ fraud_api:            FastAPI /predict, /zip, /metrics          (port 8000)
 monitoring:           Prometheus scrapes the API (9090) → Grafana dashboard (3000)
 ```
 
-## Screenshots
 
-Drop a PNG into `docs/screenshots/` and reference it here — each section below is a slot ready for the relevant capture.
+## Project Structure
 
-### Demo console UI — `http://localhost:8000`
+```
+fraud-detection-pipeline/
+├── airflow/
+│   ├── dags/           # Airflow DAG definitions
+│   └── scripts/        # ETL + training + evaluation Python
+├── api/                # FastAPI serving layer
+│   ├── data/           # bundled US ZIP → lat/lng dataset (GeoNames)
+│   ├── static/         # demo console UI (index.html + gold samples)
+│   └── tests/          # parity + endpoint tests (real-row fixtures)
+├── sql/                # PostgreSQL schema definitions
+├── docker/             # Dockerfiles
+├── monitoring/         # Prometheus + Grafana config
+├── docs/screenshots/   # README screenshots
+├── models/             # trained artifacts (gitignored — regenerate via fraud_train)
+└── docker-compose.yml
+```
 
-![Demo console — legitimate transaction flagged as legitimate](docs/screenshots/ui-legit-transaction.png)
 
-![Demo console — fraudulent transaction flagged as fraud](docs/screenshots/ui-fraud-transaction.png)
 
-### Fraud Monitoring dashboard — `http://localhost:3000` (admin / admin)
 
-![Grafana Fraud Monitoring dashboard](docs/screenshots/grafana-dashboard.png)
-
-### Airflow DAGs — `http://localhost:8080` (admin / admin)
-
-![Airflow DAG list](docs/screenshots/airflow-dags.png)
-
-### Running containers
-
-![docker compose ps — all containers healthy](docs/screenshots/docker-containers.png)
 
 ## Airflow DAGs
 
@@ -129,24 +131,26 @@ The gold `feature_transactions` table carries the eight features the model train
 | `is_new_merchant_for_card` | 1 if first time this card uses this merchant | card-testing pattern |
 | `category_target` | train-only smoothed target encoding | per-category fraud rates |
 
-## Project Structure
+## Screenshots
 
-```
-fraud-detection-pipeline/
-├── airflow/
-│   ├── dags/           # Airflow DAG definitions
-│   └── scripts/        # ETL + training + evaluation Python
-├── api/                # FastAPI serving layer
-│   ├── data/           # bundled US ZIP → lat/lng dataset (GeoNames)
-│   ├── static/         # demo console UI (index.html + gold samples)
-│   └── tests/          # parity + endpoint tests (real-row fixtures)
-├── sql/                # PostgreSQL schema definitions
-├── docker/             # Dockerfiles
-├── monitoring/         # Prometheus + Grafana config
-├── docs/screenshots/   # README screenshots
-├── models/             # trained artifacts (gitignored — regenerate via fraud_train)
-└── docker-compose.yml
-```
+
+### Demo console UI 
+
+![Demo console — legitimate transaction flagged as legitimate](docs/screenshots/ui-legit-transaction.png)
+
+![Demo console — fraudulent transaction flagged as fraud](docs/screenshots/ui-fraud-transaction.png)
+
+### Prometheus Monitoring dashboard
+
+![Grafana Fraud Monitoring dashboard](docs/screenshots/grafana-dashboard.png)
+
+### Airflow DAGs 
+
+![Airflow DAG list](docs/screenshots/airflow-dags.png)
+
+### Running containers
+
+![docker compose ps — all containers healthy](docs/screenshots/docker-containers.png)
 
 ## Testing
 

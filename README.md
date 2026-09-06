@@ -1,29 +1,64 @@
 # Fraud Detection ML Pipeline
 
-End-to-end fraud detection system with automated ETL, model training, containerized serving, and monitoring.
+End-to-end credit-card fraud detection: automated ETL → XGBoost model training → containerized FastAPI serving → live Prometheus/Grafana monitoring — all runnable with one command.
+
+## Features
+
+- **Fully automated pipeline** — Airflow DAGs ingest, validate, transform, and train, each gated by data-quality checks. Trigger train manually; everything else runs on a schedule.
+- **Demo console UI** (`http://localhost:8000`) — predict fraud probability on *any* transaction straight from the browser:
+  - Load a real gold-table sample (6 known-fraud + 6 known-legit) with a click.
+  - Type an amount, category, and datetime — no raw timestamps needed.
+  - Auto-fill cardholder/merchant coordinates from a US ZIP code (bundled ~41k-ZIP offline dataset, zero API keys).
+- **Production-grade serving** — FastAPI `/predict`, `/health`, offline ZIP geocoding, and Prometheus `/metrics`, scraped into an auto-provisioned **Fraud Monitoring** Grafana dashboard (request rate, latency p50/p95, outcome split, flagged-fraud rate).
+- **One-command infrastructure** — `docker compose up -d` brings up Postgres, Airflow, the API, Prometheus, and Grafana.
 
 ## Architecture
 
 ```
-Kaggle API  ->  Airflow DAGs  ->  PostgreSQL  ->  Model Training  ->  FastAPI  ->  Prometheus/Grafana
-                    (ETL)          (warehouse)     (XGBoost)        (serving)      (monitoring)
+Kaggle API  ->  Airflow DAGs  ->  PostgreSQL  ->  XGBoost training  ->  FastAPI  ->  Prometheus / Grafana
+                  (ETL)           (warehouse)   (temporal holdout)    (serving)       (monitoring)
 
-DAG fraud_ingestion:   fetch_data   -> validate_raw        (Week 1)
-DAG fraud_transform:   transform    -> validate_features   (Week 2)
-DAG fraud_train:       train_model  -> evaluate_model      (Week 3)
-API fraud_api:         FastAPI /predict + /metrics          (Week 4)
-Monitor:               Prometheus scrapes api, Grafana dashboards  (Week 5)
+DAG fraud_ingestion:  fetch_data  -> validate_raw               (raw_transactions)
+DAG fraud_transform:  transform   -> validate_features          (feature_transactions)
+DAG fraud_train:      train_model -> evaluate_model             (xgb_fraud_model.json + metrics)
+fraud_api:            FastAPI /predict, /zip, /metrics          (port 8000)
+monitoring:           Prometheus scrapes the API (9090) → Grafana dashboard (3000)
 ```
 
-## Stages
+## Screenshots
 
-| Stage | DAG | Input | Output | Status |
-|---|---|---|---|---|
-| Week 1 - Ingest | `fraud_ingestion` | Kaggle CSV | `raw_transactions` | done |
-| Week 2 - Transform | `fraud_transform` | `raw_transactions` | `feature_transactions` | done |
-| Week 3 - Train | `fraud_train` | `feature_transactions` | XGBoost model + `model_metrics` | done |
-| Week 4 - Serve | `fraud_api` | model | FastAPI `/predict` + `/metrics` | done |
-| Week 5 - Monitor | `prometheus` + `grafana` | API metrics | "Fraud Monitoring" dashboard | done |
+Drop a PNG into `docs/screenshots/` and reference it here — each section below is a slot ready for the relevant capture.
+
+### Demo console UI — `http://localhost:8000`
+
+![Demo console — transaction form + result](docs/screenshots/ui-demo-console.png)
+
+### Fraud Monitoring dashboard — `http://localhost:3000` (admin / admin)
+
+![Grafana Fraud Monitoring dashboard](docs/screenshots/grafana-dashboard.png)
+
+### Airflow pipeline — `http://localhost:8080` (admin / admin)
+
+![Airflow DAG graph view](docs/screenshots/airflow-dags.png)
+
+### Running containers
+
+![docker compose ps — all services healthy](docs/screenshots/docker-containers.png)
+
+## Quick Start
+
+```bash
+cp .env.example .env        # add your Kaggle API token
+docker compose up -d        # starts all services
+docker compose up -d --build api   # (rebuild after code changes)
+```
+
+| Service | URL | Credentials |
+|---|---|---|
+| Demo console / API | http://localhost:8000 | — |
+| Airflow | http://localhost:8080 | admin / admin |
+| Prometheus | http://localhost:9090 | — |
+| Grafana | http://localhost:3000 | admin / admin |
 
 ## Tech Stack
 
@@ -31,93 +66,75 @@ Monitor:               Prometheus scrapes api, Grafana dashboards  (Week 5)
 - **Database:** PostgreSQL 15
 - **ML:** XGBoost, scikit-learn, pandas
 - **Serving:** FastAPI + uvicorn
-- **Monitoring:** Prometheus + Grafana
-- **Containerization:** Docker Compose
+- **Monitoring:** Prometheus + PromClient, Grafana
+- **Infra:** Docker Compose
 
-## Quick Start
+## API
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /predict` | Score one raw transaction → `{fraud_probability, prediction, latency_ms}`. Body: `time`, `amount`, `category`, `dob`, `city_pop`, cardholder `lat`/`long`, `merch_lat`/`merch_long`, optional `is_new_merchant_for_card`. Unknown fields are rejected (422) instead of silently ignored. |
+| `GET /zip/{code}` | Offline US ZIP lookup → `{zip, place, state, lat, lng}` (bundled GeoNames data, ~41k ZIPs) — powers the UI's coordinate auto-fill. |
+| `GET /health` | Liveness + model fingerprint (artifact mtime/size, loaded-at). |
+| `GET /metrics` | Prometheus text format: request count, latency histogram, outcome counter. |
+
+Example:
 
 ```bash
-cp .env.example .env        # add your Kaggle API token
-docker compose up -d        # start all services
-# Airflow UI: http://localhost:8080 (admin / admin)
+curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -d @tx.json
 ```
 
-## Project Structure
+## Model & Performance
 
-```
-fraud-detection-pipeline/
-├── airflow/
-│   ├── dags/          # Airflow DAG definitions
-│   ├── scripts/       # Python scripts for DAG operators
-│   └── requirements.txt
-├── api/               # FastAPI serving layer
-├── ml/                # Model training + evaluation
-├── sql/               # PostgreSQL schema definitions
-├── docker/            # Dockerfiles
-├── monitoring/        # Prometheus + Grafana config
-├── docker-compose.yml
-└── .env.example
-```
+XGBoost trained on the dataset's own **chronological split** (not random): trained on the earlier `source_split='train'` subset, evaluated on the later 'test' subset the model never saw. `scale_pos_weight` derived from the train split only; category target-encoding + imputation values are fit on train and persisted so serve can never drift from training.
 
-## Dataset
+Latest temporal-holdout results: **ROC-AUC 0.998, recall 0.947 (2,031/2,145 frauds caught), F1 0.431.**
 
-[Credit Card Transactions Fraud Detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection) — 1,852,394 transactions (2019–2020), 9,651 fraudulent (~0.52%). `source_split` marks the chronological train/test boundary: the model is trained on the earlier half and evaluated on the later half it never saw.
+## Feature Engineering
 
-## Feature Engineering (Week 2)
-
-`feature_transactions` (gold) carries the engineering the model trains on:
+The gold `feature_transactions` table carries the eight features the model trains on:
 
 | Feature | Definition | Purpose |
 |---|---|---|
 | `hour_of_day` | UTC hour of the transaction | fraud clusters at certain hours |
 | `is_weekend` | 1 on Sat/Sun | weekend activity signal |
 | `amount_log` | `ln(amt + 1)` | spreads out tiny fraud amounts |
-| `age` | whole calendar years as of tx (from DOB); >110 nulled | demography signal |
+| `age` | whole calendar years as of tx (from DOB); `>110` nulled → imputed | demography signal |
 | `distance_km` | great-circle distance card-pos → merchant-pos | impossible-travel fraud |
 | `city_pop_bin` | 0..3 buckets of cardholder `city_pop` | small-city concentration |
 | `is_new_merchant_for_card` | 1 if first time this card uses this merchant | card-testing pattern |
+| `category_target` | train-only smoothed target encoding | per-category fraud rates |
 
-Quality gate (`validate_features.py`) runs structural + semantic checks plus a per-split class-imbalance report (the TRAIN split sets Week 3 `scale_pos_weight`).
-
-## Model Training (Week 3)
-
-`fraud_train` is manual-only (`schedule=None`) — the dataset is static, so daily retraining is wasted compute. Trigger via Airflow UI or `airflow dags trigger fraud_train`.
-
-The model uses the dataset's own **chronological split**, not a random one: trained on `source_split='train'` (1,296,675 rows) and evaluated on the later `source_split='test'` (555,719 rows) — 7,506 + 2,145 = 9,651 total frauds. `scale_pos_weight` (171.75) comes from the train split only.
-
-- `scripts/train_model.py` — trains on the temporal train split. Category target encoding is fit on **train only**, smoothed (m=30), and persisted to `category_target_map.json`; train-split imputation values persist to `imputation_values.json`. Artifacts are written *before* the matrices are built, so evaluate and serve consume the exact same numbers. Fixed `n_estimators=300` (no early stopping) keeps the saved/loaded tree count identical.
-- `scripts/evaluate_model.py` — reloads the artifact + persisted maps, rebuilds the same matrices through the shared `build_matrices()`, scores the temporal test split, writes `metrics_latest.json`, inserts a row into `model_metrics` (schema in `sql/create_model_metrics.sql`), and runs a predict-one sanity check (fraud ≈0.9998 / legit ≈0.0003).
-- `scripts/modeling_common.py` — single source of truth for the 8-feature list, artifact paths, transform constants, and hyperparameters.
-
-Latest temporal-holdout performance (test = the future months the model never saw): ROC-AUC 0.998, recall 0.947 (2,031/2,145 frauds caught), F1 0.431.
-
-## Serving (Week 4)
-
-The trained artifact is served by a FastAPI container (`fraud_api`, port 8000). It mounts `models/` + `airflow/scripts/` read-only for the feature contract. The served encoder **reads the persisted Week-3 artifacts** (`category_target_map.json` + `imputation_values.json`) and mirrors the training transform 1:1 — no learned value is recomputed or hardcoded, so train == evaluate == serve.
-
-- `POST /predict` — body is a kartik2112 raw transaction (`time`, `amount`, `category`, `dob`, `city_pop`, cardholder `lat`/`long`, `merch_lat`/`merch_long`, optional `is_new_merchant_for_card`); returns `{fraud_probability, prediction, latency_ms}`. Stale v1-v28 payloads now 422 loudly (`extra="forbid"`).
-- `GET /metrics` — Prometheus text format: request count, latency histogram, outcome counter (scraped directly, no exporter).
-- `GET /health` — liveness + model fingerprint (artifact mtime/size, loaded-at).
-- `GET /zip/{code}` — offline 5-digit US ZIP lookup → `{zip, place, state, lat, lng}` (bundled GeoNames postal data, ~41k ZIPs), so the UI can convert a ZIP to cardholder/merchant coordinates instead of hand-typing lat/lng.
-- Feature math mirrors the Week 2 SQL transform 1:1: `hour_of_day`/`is_weekend` derive from `time` via the fixed `2013-09-01 00:00:00Z` anchor; age/distance use the same helpers as training; population buckets + target encoding come from the persisted files. Feature order comes from `modeling_common.FEATURES` so train and serve can't drift.
-
-Example: `curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -d @tx.json`
-
-The demo console (`/`) is a form over the raw fields with a "Load random sample" that pulls 12 real gold-table transactions (6 fraud + 6 legit).
-
-Parity: `api/parity_check.py` proves the served encoding reproduces training on 12 real rows (`encoder == gold features`, `served probability == artifact score`). Tests: `api/tests/test_predict.py` — 16 checks on real-row fixtures, no DB needed at test time.
-
-Run the API test suite in an isolated throwaway container (builds `api/Dockerfile.test` with dev deps and bakes in `tests/` + `fixtures/`, mounts the real model):
+## Project Structure
 
 ```
+fraud-detection-pipeline/
+├── airflow/
+│   ├── dags/           # Airflow DAG definitions
+│   └── scripts/        # ETL + training + evaluation Python
+├── api/                # FastAPI serving layer
+│   ├── data/           # bundled US ZIP → lat/lng dataset (GeoNames)
+│   ├── static/         # demo console UI (index.html + gold samples)
+│   └── tests/          # parity + endpoint tests (real-row fixtures)
+├── sql/                # PostgreSQL schema definitions
+├── docker/             # Dockerfiles
+├── monitoring/         # Prometheus + Grafana config
+├── docs/screenshots/   # README screenshots
+├── models/             # trained artifacts (gitignored — regenerate via fraud_train)
+└── docker-compose.yml
+```
+
+## Testing
+
+`api/tests/test_predict.py` runs 16 checks against real-row fixtures carrying gold feature values — encoder parity, artifact parity, endpoint behavior, validation, and ZIP lookup — with no database needed. Run them in a throwaway container:
+
+```bash
 docker compose --profile test run --rm api-tests
 ```
 
-## Monitoring (Week 5)
+## Dataset
 
-Prometheus (port 9090) pull-scrapes `http://api:8000/metrics` every 5s; Grafana (port 3000, `admin/admin`) is auto-provisioned with the **Fraud Monitoring** dashboard (request rate, latency p50/p95, outcome split, 5-minute flagged-fraud rate, API/Prometheus availability). All config is files under `monitoring/` — no manual setup.
-
-Note: Prometheus runs **without a persistent volume**, so metrics reset on container restart — acceptable for a demo environment.
+[Credit Card Transactions Fraud Detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection) — 1,852,394 transactions (2019–2020), 9,651 fraudulent (~0.52%). `source_split` marks the chronological train/test boundary the model respects.
 
 ## License
 
